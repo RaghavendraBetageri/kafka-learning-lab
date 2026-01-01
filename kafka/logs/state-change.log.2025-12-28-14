@@ -1,0 +1,7 @@
+[2025-12-28 14:58:32,270] INFO [Broker id=1] Handling LeaderAndIsr request correlationId 6 from controller 0 for 2 partitions (state.change.logger)
+[2025-12-28 14:58:32,273] INFO [Broker id=1] Stopped fetchers as part of LeaderAndIsr request correlationId 6 from controller 0 epoch 1 as part of the become-leader transition for 1 partitions (state.change.logger)
+[2025-12-28 14:58:32,291] INFO [Broker id=1] Leader short-lived-0 with topic id Some(4AM_RqbnQ4SzW3VNxxv6zg) starts at leader epoch 0 from offset 0 with partition epoch 0, high watermark 0, ISR [1,0], adding replicas [] and removing replicas [] . Previous leader None and previous leader epoch was -1. (state.change.logger)
+[2025-12-28 14:58:32,311] INFO [Broker id=1] Follower short-lived-2 starts at leader epoch 0 from offset 0 with partition epoch 0 and high watermark 0. Current leader is 2. Previous leader Some(2) and previous leader epoch was 0. (state.change.logger)
+[2025-12-28 14:58:32,311] INFO [Broker id=1] Stopped fetchers as part of become-follower request from controller 0 epoch 1 with correlation id 6 for 1 partitions (state.change.logger)
+[2025-12-28 14:58:32,315] INFO [Broker id=1] Finished LeaderAndIsr request in 46ms correlationId 6 from controller 0 for 2 partitions (state.change.logger)
+[2025-12-28 14:58:32,317] INFO [Broker id=1] Add 3 partitions and deleted 0 partitions from metadata cache in response to UpdateMetadata request sent by controller 0 epoch 1 with correlation id 7 (state.change.logger)
