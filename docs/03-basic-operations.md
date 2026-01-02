@@ -470,12 +470,12 @@ Partition 2:
 └──────────────┘              └──────────────┘
 ```
 
-**Beautiful Load Balancing!** Notice how:
+**Load Balancing!**
 - Each broker is leader for exactly 1 partition
 - Leadership is distributed evenly
 - No single broker is overloaded
 
-This is Kafka's automatic load balancing in action! 🎯
+This is Kafka's automatic load balancing in action!
 
 **Understanding ISR (In-Sync Replicas):**
 
@@ -496,9 +496,9 @@ kafka/bin/kafka-configs.sh --describe \
 
 # Output:
 # Dynamic configs for topic payments are:
-#   retention.ms=2592000000
-#   min.insync.replicas=2
-#   compression.type=lz4
+#   compression.type=lz4 sensitive=false synonyms={DYNAMIC_TOPIC_CONFIG:compression.type=lz4, DEFAULT_CONFIG:compression.type=producer}
+#   min.insync.replicas=2 sensitive=false synonyms={DYNAMIC_TOPIC_CONFIG:min.insync.replicas=2, STATIC_BROKER_CONFIG:min.insync.replicas=1, DEFAULT_CONFIG:min.insync.replicas=1}
+#   retention.ms=2592000000 sensitive=false synonyms={DYNAMIC_TOPIC_CONFIG:retention.ms=2592000000}
 ```
 
 **Describe All Topics at Once:**
@@ -530,13 +530,6 @@ kafka/bin/kafka-topics.sh --alter \
   --topic orders \
   --partitions 6 \
   --bootstrap-server localhost:9092
-```
-
-**Expected Output:**
-```
-WARNING: If partitions are increased for a topic that has a key, 
-the partition logic or ordering of the messages will be affected. 
-Adding partitions succeeded!
 ```
 
 **⚠️ CRITICAL WARNING - Read This Carefully!**
@@ -691,64 +684,116 @@ grep delete.topic.enable ~/kafka-learning-lab/kafka/config/server-0.properties
 
 ## Producing Messages
 
-Now the fun begins! Let's send actual data to Kafka.
+Let's send actual data to Kafka.
 
 ### Simple String Messages
-
-Let's start with the basics - sending plain text messages.
-
-**Why start simple?** Master the fundamentals before adding complexity. Plain text is easiest to debug!
-
-#### Console Producer - Your First Message
-
+#### Core Command
 ```bash
 kafka/bin/kafka-console-producer.sh \
   --topic orders \
   --bootstrap-server localhost:9092
 ```
+**Usage**: Type messages line-by-line, press Enter. Each line = 1 message. Exit: `Ctrl+C`
 
-**After running this, you'll see:**
+---
+
+#### Key Concepts
+
+#### Sticky Partitioning (Kafka 2.4+)
+- **Behavior**: Batches messages together → same partition → better performance
+- **Example**: 4 quick messages → all to Partition 2
+- **Why**: Reduces network calls, increases throughput
+- **Trade-off**: Short-term imbalance for long-term efficiency
+
+#### Message Flow
 ```
->
-```
-
-The `>` is your prompt. Now type some orders:
-
-```
->Order received: laptop, $1200
->Order received: mouse, $25
->Order received: keyboard, $75
->Order received: monitor, $350
->^C  (Press Ctrl+C when done)
-```
-
-**🎉 Congratulations!** You just sent your first Kafka messages!
-
-**What Just Happened?**
-
-1. **Each line = 1 message**: Kafka stores each line as separate message
-2. **Round-robin distribution**: Messages spread across partitions (0, 1, 2)
-3. **Persisted to disk**: Messages written to `/tmp/kafka-logs-*/orders-*/`
-4. **Ready for consumers**: Any consumer can now read these messages
-
-**Verify Messages Were Written:**
-```bash
-# Check message count per partition
-kafka/bin/kafka-run-class.sh kafka.tools.GetOffsetShell \
-  --broker-list localhost:9092 \
-  --topic orders \
-  --time -1
-
-# Example output:
-# orders:0:2  (2 messages in partition 0)
-# orders:1:1  (1 message in partition 1)
-# orders:2:1  (1 message in partition 2)
-# Total: 4 messages distributed across partitions
+Your Input → Batch → Single Partition → Disk (/tmp/kafka-logs-*/orders-*/)
 ```
 
 ---
 
-#### Producing from a File
+#### Verification Commands
+
+#### Check Message Counts (Kafka 3.0+)
+```bash
+# Recommended
+kafka/bin/kafka-get-offsets.sh \
+  --bootstrap-server localhost:9092 \
+  --topic orders
+
+```
+
+**Output Example**:
+```
+orders:0:0
+orders:2:4    ← 4 messages in Partition 2
+orders:5:0
+```
+Format: `topic:partition:end_offset`
+
+#### View Physical Files
+```bash
+ls -lh /tmp/kafka-logs-*/orders-*
+```
+
+---
+
+#### Producer Properties (Testing vs Production)
+
+| Property | Default | Testing | Production |
+|----------|---------|---------|------------|
+| `batch.size` | 16384 (16KB) | 100-500 bytes | 32768-65536 bytes |
+| `linger.ms` | 0 | 100ms | 10-50ms |
+| `compression.type` | none | - | lz4/snappy |
+| `acks` | 1 | 1 | all (critical data) |
+
+##### Testing Config (Force Distribution)
+```bash
+kafka/bin/kafka-console-producer.sh \
+  --topic orders \
+  --bootstrap-server localhost:9092 \
+  --producer-property batch.size=100 \
+  --producer-property linger.ms=100
+```
+
+#### Production Config (High Throughput)
+```bash
+kafka/bin/kafka-console-producer.sh \
+  --topic orders \
+  --bootstrap-server localhost:9092 \
+  --producer-property batch.size=32768 \
+  --producer-property linger.ms=10 \
+  --producer-property compression.type=lz4 \
+  --producer-property acks=1
+```
+
+---
+
+#### Distribution Testing
+
+#### Test 1: Quick Messages (Sticky Partitioning)
+```bash
+echo -e "msg1\nmsg2\nmsg3\nmsg4" | kafka/bin/kafka-console-producer.sh \
+  --topic orders --bootstrap-server localhost:9092
+```
+**Result**: All → 1 partition (normal behavior)
+
+#### Test 2: Forced Distribution (600 messages)
+```bash
+for i in {1..600}; do 
+  echo "Message $i"
+  sleep 0.01
+done | kafka/bin/kafka-console-producer.sh \
+  --topic orders \
+  --bootstrap-server localhost:9092 \
+  --producer-property batch.size=100 \
+  --producer-property linger.ms=100
+```
+**Result**: Even distribution across all partitions (16-18% each)
+
+---
+
+### Producing from a File
 
 Typing messages manually is tedious. Let's batch-send from a file!
 
@@ -782,10 +827,9 @@ kafka/bin/kafka-console-producer.sh \
 **Verify:**
 ```bash
 # Count should increase by 5
-kafka/bin/kafka-run-class.sh kafka.tools.GetOffsetShell \
-  --broker-list localhost:9092 \
-  --topic orders \
-  --time -1
+kafka/bin/kafka-get-offsets.sh \
+  --bootstrap-server localhost:9092 \
+  --topic orders
 ```
 
 ---
@@ -848,48 +892,144 @@ kafka/bin/kafka-console-producer.sh \
 ```
 
 **Verify JSON Integrity:**
+#### Three Methods Overview
+
+| Method | Speed | Use Case | Filtering |
+|--------|-------|----------|-----------|
+| Partition + Offset | ⚡ Fast | Recent messages, known location | ❌ Manual |
+| jq Filter (all JSON) | 🐢 Slower | Find any JSON in topic | ✅ Auto |
+| jq Filter (objects) | 🐢 Slower | Find JSON objects only | ✅ Smart |
+
+---
+
+#### Method 1: Specific Partition + Offset (Fastest)
+
+##### Command
 ```bash
-# Read back and check JSON format
 kafka/bin/kafka-console-consumer.sh \
   --topic orders \
-  --from-beginning \
-  --max-messages 3 \
+  --partition 3 \
+  --offset 95 \
+  --bootstrap-server localhost:9092 \
+  --max-messages 10
+```
+
+##### Finding the Right Offset
+```bash
+# Step 1: Check end offsets
+kafka/bin/kafka-get-offsets.sh --bootstrap-server localhost:9092 --topic orders
+# Output: orders:3:98
+
+# Step 2: Calculate starting offset (for last 10 messages)
+# 98 - 10 = 88
+
+# Step 3: Read from offset
+kafka/bin/kafka-console-consumer.sh --topic orders --partition 3 --offset 88 \
   --bootstrap-server localhost:9092
 ```
 
-**Pretty-Print JSON Output (using jq):**
+**Pros**: Fast, precise, efficient  
+**Cons**: Requires offset calculation, shows mixed content
+
+---
+
+#### Method 2: Filter All Valid JSON (Automatic)
+
+##### Command
 ```bash
-kafka/bin/kafka-console-consumer.sh \
-  --topic orders \
-  --from-beginning \
-  --max-messages 1 \
-  --bootstrap-server localhost:9092 | jq .
-
-# Output:
-# {
-#   "order_id": "ORD-1001",
-#   "user_id": "USER-500",
-#   "timestamp": "2026-01-01T12:30:00Z",
-#   ...
-# }
-```
-
-**Extract Specific Fields:**
-```bash
-# Show only order_id and total_amount
-kafka/bin/kafka-console-consumer.sh \
-  --topic orders \
-  --from-beginning \
-  --max-messages 5 \
-  --bootstrap-server localhost:9092 | jq '{order_id, total_amount}'
-
-# Calculate total revenue
 kafka/bin/kafka-console-consumer.sh \
   --topic orders \
   --from-beginning \
   --bootstrap-server localhost:9092 \
-  --timeout-ms 5000 2>/dev/null | jq -s 'map(.total_amount) | add'
+  --timeout-ms 10000 2>/dev/null | \
+  jq -R 'fromjson? | select(. != null)' 2>/dev/null
 ```
+
+**Result**: Shows all valid JSON (including numbers, strings)
+
+##### How It Works
+```
+Message → jq -R (raw) → fromjson? (try parse) → select (filter) → Output
+"text"          ❌ null (filtered out)
+"1"             ✅ 1 (JSON primitive, kept)
+"{...}"         ✅ {...} (JSON object, kept)
+```
+
+**Pros**: Automatic, comprehensive  
+**Cons**: Shows JSON primitives (numbers), slower
+
+---
+
+#### Method 3: Filter JSON Objects Only (Recommended)
+
+##### Option A: By Object Type
+```bash
+kafka/bin/kafka-console-consumer.sh \
+  --topic orders \
+  --from-beginning \
+  --bootstrap-server localhost:9092 \
+  --timeout-ms 10000 2>/dev/null | \
+  jq -R 'fromjson? | select(type == "object")' 2>/dev/null
+```
+
+##### Option B: By Specific Field (Best)
+```bash
+kafka/bin/kafka-console-consumer.sh \
+  --topic orders \
+  --from-beginning \
+  --bootstrap-server localhost:9092 \
+  --timeout-ms 10000 2>/dev/null | \
+  jq -R 'fromjson? | select(.order_id != null)' 2>/dev/null
+```
+
+**Result**: Only JSON objects with `order_id` field
+
+**Pros**: Clean output, field validation  
+**Cons**: Slower for large topics
+
+---
+
+#### Advanced jq Techniques
+
+##### Extract Specific Fields
+```bash
+# Show only order_id and total_amount
+... | jq -R 'fromjson? | select(.order_id != null) | {order_id, total_amount}'
+```
+
+##### Calculate Total Revenue
+```bash
+... | jq -R 'fromjson? | select(.order_id != null)' 2>/dev/null | \
+  jq -s 'map(.total_amount) | add'
+# Output: 1350
+```
+**Explanation**: `-s` (slurp) → `map()` (extract) → `add` (sum)
+
+##### Filter by Criteria
+```bash
+# Orders > $100
+... | jq -R 'fromjson? | select(.order_id != null and .total_amount > 100)'
+
+# Credit card payments only
+... | jq -R 'fromjson? | select(.payment_method == "credit_card")'
+
+# Pending orders
+... | jq -R 'fromjson? | select(.status == "pending")'
+```
+
+---
+
+#### jq Options Explained
+
+| Option | Purpose | Example |
+|--------|---------|---------|
+| `-R` | Raw input (read as strings) | `jq -R` |
+| `fromjson?` | Try parse JSON (safe) | `fromjson?` (no error on fail) |
+| `select()` | Filter condition | `select(.order_id != null)` |
+| `type` | Check data type | `type == "object"` |
+| `-s` | Slurp (array of all) | `jq -s 'map(...) \| add'` |
+| `map()` | Transform array | `map(.total_amount)` |
+
 
 ---
 
