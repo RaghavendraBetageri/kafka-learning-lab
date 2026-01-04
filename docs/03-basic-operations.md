@@ -1057,9 +1057,9 @@ kafka/bin/kafka-console-consumer.sh \
 **Check Your Message Size:**
 ```bash
 # Count bytes in JSON message
-echo '{"order_id":"ORD-1001","user_id":"USER-500",...}' | wc -c
+echo | cat /tmp/orders-json.txt | wc -c
 
-# Example: 245 bytes (well within limits!)
+# 701 bytes (well within limits!)
 ```
 
 **If You Need Large Messages:**
@@ -1096,7 +1096,7 @@ Store references instead:
 }
 ```
 
-This keeps Kafka fast and messages small! 🚀
+This keeps Kafka fast and messages small!
 
 ---
 
@@ -1214,7 +1214,7 @@ kafka/bin/kafka-console-consumer.sh \
 # Partition:1 | USER-500 | {"order_id":"ORD-1005",...}  ← Same partition!
 ```
 
-Perfect! All USER-500 messages in Partition 1! 🎯
+Perfect! All USER-500 messages in Partition 1!
 
 ---
 
@@ -1296,7 +1296,7 @@ New messages (USER-500):  Partition 4
 ↓
 Messages split across partitions!
 ↓
-Ordering broken for USER-500! 💔
+Ordering broken for USER-500!
 ```
 
 **When to Use Keys vs. No Keys:**
@@ -1411,8 +1411,6 @@ time kafka/bin/kafka-console-producer.sh \
   --topic test-batch \
   --bootstrap-server localhost:9092 \
   < /tmp/bulk-test.txt
-
-# Note the time (e.g., 45 seconds)
 ```
 
 **Measure WITH Batching:**
@@ -1424,11 +1422,9 @@ time kafka/bin/kafka-console-producer.sh \
   --producer-property linger.ms=10 \
   --producer-property compression.type=lz4 \
   < /tmp/bulk-test.txt
-
-# Note the time (e.g., 12 seconds)
 ```
 
-**Result:** Batching is 3-4× faster! 🏎️
+**Result:** Batching is 1.5-2× faster!
 
 ---
 
@@ -1450,7 +1446,7 @@ kafka/bin/kafka-console-consumer.sh \
 ```
 
 **What Happens:**
-1. Consumer connects to all 3 partitions
+1. Consumer connects to all the partitions
 2. Starts reading from offset 0 (first message ever)
 3. Shows ALL historical messages
 4. Continues tailing for new messages (stays open)
@@ -1458,8 +1454,8 @@ kafka/bin/kafka-console-consumer.sh \
 
 **Example Output:**
 ```
-Order received: laptop, $1200
-Order received: mouse, $25
+Order received: laptop, 1200
+Order received: mouse, 25
 {"order_id":"ORD-1001","user_id":"USER-500",...}
 {"order_id":"ORD-1002","user_id":"USER-501",...}
 ^CProcessed a total of 8 messages
@@ -1516,7 +1512,7 @@ kafka/bin/kafka-console-producer.sh \
 New order: tablet, $500
 ```
 
-Real-time! ⚡
+Real-time!
 
 ---
 
@@ -1611,19 +1607,11 @@ kafka/bin/kafka-console-consumer.sh \
 **Beautiful Output:**
 ```json
 {
-  "order_id": "ORD-1001",
-  "user_id": "USER-500",
-  "timestamp": "2026-01-01T12:30:00Z",
-  "items": [
-    {
-      "product_id": "LAPTOP-X1",
-      "quantity": 1,
-      "price": 1200.0
-    }
-  ],
-  "total_amount": 1200.0,
-  "payment_method": "credit_card",
-  "status": "pending"
+  "order_id": "ORD-1002",
+  "user_id": "USER-501",
+  "action": "add_to_cart",
+  "item": "mouse",
+  "amount": 50.00
 }
 ```
 
@@ -1633,13 +1621,15 @@ kafka/bin/kafka-console-consumer.sh \
 kafka/bin/kafka-console-consumer.sh \
   --topic orders \
   --from-beginning \
-  --max-messages 5 \
-  --bootstrap-server localhost:9092 | jq '{order_id, total_amount}'
+  --max-messages 1 \
+  --bootstrap-server localhost:9092 | jq '{order_id, amount, unlisted_field}'
 
 # Output:
-# {"order_id": "ORD-1001", "total_amount": 1200.0}
-# {"order_id": "ORD-1002", "total_amount": 50.0}
-# ...
+{
+  "order_id": "ORD-1002",
+  "amount": 50.00,
+  "unlisted_field": null
+}
 ```
 
 **Aggregate Data:**
@@ -1648,11 +1638,12 @@ kafka/bin/kafka-console-consumer.sh \
 kafka/bin/kafka-console-consumer.sh \
   --topic orders \
   --from-beginning \
-  --bootstrap-server localhost:9092 \
-  --timeout-ms 5000 2>/dev/null | \
-jq -s 'map(.total_amount) | add'
+  --max-messages 2 \
+  --bootstrap-server localhost:9092 | jq -s 'map(.amount) | add'
 
-# Output: 2775.0
+# Output: 
+Processed a total of 2 messages
+1225
 ```
 
 ---
@@ -1787,9 +1778,7 @@ kafka/bin/kafka-consumer-groups.sh --list \
 
 # Example output:
 # inventory-service
-# payment-processor
-# analytics-team
-# fraud-detection
+# existing-group
 ```
 
 ---
@@ -1929,10 +1918,14 @@ kafka/bin/kafka-consumer-groups.sh --describe \
 # Shows which consumer assigned to which partition
 ```
 
-**Visual Representation:**
+**Visual Representation (Look at CONSUMER-ID):**
 
 **Before (1 consumer):**
 ```
+GROUP           TOPIC           PARTITION  CURRENT-OFFSET  LOG-END-OFFSET  LAG             CONSUMER-ID                                           HOST            CLIENT-ID
+demo-group      high-volume     0          0               0               0               console-consumer-bac2bc23-dfe2-4b7d-93fe-b61a737bba46 /127.0.0.1      console-consumer
+demo-group      high-volume     2          0               0               0               console-consumer-bac2bc23-dfe2-4b7d-93fe-b61a737bba46 /127.0.0.1      console-consumer
+demo-group      high-volume     1          0               0               0               console-consumer-bac2bc23-dfe2-4b7d-93fe-b61a737bba46 /127.0.0.1      console-consumer%      
 ┌──────────────────┐
 │   Consumer A     │
 ├──────────────────┤
@@ -1945,6 +1938,10 @@ Throughput: 1× (bottleneck!)
 
 **After (3 consumers):**
 ```
+GROUP           TOPIC           PARTITION  CURRENT-OFFSET  LOG-END-OFFSET  LAG             CONSUMER-ID                                           HOST            CLIENT-ID
+demo-group      high-volume     1          0               0               0               console-consumer-883bb348-9863-4dcb-860f-648dc57df17a /127.0.0.1      console-consumer
+demo-group      high-volume     2          0               0               0               console-consumer-bac2bc23-dfe2-4b7d-93fe-b61a737bba46 /127.0.0.1      console-consumer
+demo-group      high-volume     0          0               0               0               console-consumer-391b47e7-8793-4571-b995-a9729c7d9bd4 /127.0.0.1      console-consumer%      
 ┌─────────────┐  ┌─────────────┐  ┌─────────────┐
 │ Consumer A  │  │ Consumer B  │  │ Consumer C  │
 ├─────────────┤  ├─────────────┤  ├─────────────┤
@@ -1958,7 +1955,7 @@ Throughput: 3× (parallelized!)
 #### Rebalancing: The Choreography
 
 **What is Rebalancing?**
-When consumers join/leave, Kafka reassigns partitions. It's like a dance! 💃
+When consumers join/leave, Kafka reassigns partitions.
 
 **Triggers:**
 - New consumer joins group
@@ -2029,14 +2026,6 @@ kafka/bin/kafka-console-consumer.sh \
 - ⚠️ Usually lasts 100ms - 1 second
 - ⚠️ Frequent rebalances hurt performance ("rebalance storm")
 
-**Monitor Rebalances:**
-```bash
-# Watch broker logs
-tail -f ~/kafka-learning-lab/kafka/logs/server.log | grep -i rebalance
-
-# Or watch assignments change
-watch -n 1 "kafka/bin/kafka-consumer-groups.sh --describe --group rebalance-demo --bootstrap-server localhost:9092"
-```
 
 ---
 
@@ -2260,30 +2249,36 @@ inventory-service  orders 2          178             180             2
 
 ```bash
 # Earliest (first message) offset
-kafka/bin/kafka-run-class.sh kafka.tools.GetOffsetShell \
+kafka/bin/kafka-get-offsets.sh \
   --broker-list localhost:9092 \
   --topic orders \
   --time -2
 
 # Output:
-# orders:0:0
-# orders:1:0
-# orders:2:0
+orders:0:0
+orders:1:0
+orders:2:0
+orders:3:0
+orders:4:0
+orders:5:0
 # (All partitions start at offset 0)
 ```
 
 ```bash
 # Latest (last message + 1) offset
-kafka/bin/kafka-run-class.sh kafka.tools.GetOffsetShell \
+kafka/bin/kafka-get-offsets.sh \
   --broker-list localhost:9092 \
   --topic orders \
   --time -1
 
 # Output:
-# orders:0:150
-# orders:1:203
-# orders:2:180
-# (Partition 0 has 150 messages total)
+orders:0:3
+orders:1:5
+orders:2:0
+orders:3:0
+orders:4:2
+orders:5:0
+# (Partition 0 has 3 messages total)
 ```
 
 ---
@@ -2441,7 +2436,7 @@ else:
 # Check message count per partition
 for partition in {0..2}; do
   echo -n "Partition $partition: "
-  kafka/bin/kafka-run-class.sh kafka.tools.GetOffsetShell \
+  kafka/bin/kafka-get-offsets.sh \
     --broker-list localhost:9092 \
     --topic orders \
     --time -1 | grep ":$partition:" | awk -F: '{print $3}'
@@ -2664,17 +2659,6 @@ kafka/bin/kafka-consumer-groups.sh --reset-offsets \
   --bootstrap-server localhost:9092
 ```
 
-**Linux Version:**
-```bash
-TIMESTAMP=$(date -d '1 hour ago' +%s)000
-
-kafka/bin/kafka-consumer-groups.sh --reset-offsets \
-  --group inventory-service \
-  --topic orders \
-  --to-datetime "${TIMESTAMP}" \
-  --execute \
-  --bootstrap-server localhost:9092
-```
 
 **Use Case:**
 ```
@@ -2684,7 +2668,7 @@ Solution: Reset to 2026-01-01T09:55:00
 
 ---
 
-###Reset to Specific Offset
+### Reset to Specific Offset
 
 Set exact offset number:
 
@@ -3061,7 +3045,16 @@ echo "Waiting 90 seconds for compaction..."
 sleep 90
 ```
 
-**Step 4: Read After Compaction**
+**Step 4: Trigger segment close**
+```bash
+echo "TRIGGER:segment-close" | kafka/bin/kafka-console-producer.sh \
+  --topic user-profiles \
+  --bootstrap-server localhost:9092 \
+  --property parse.key=true \
+  --property key.separator=:
+```
+
+**Step 5: Read After Compaction**
 
 ```bash
 kafka/bin/kafka-console-consumer.sh \
@@ -3106,6 +3099,13 @@ echo "USER-1:" | kafka/bin/kafka-console-producer.sh \
   --property null.marker=""
 
 # Empty value after : means NULL
+```
+```bash
+echo "TRIGGER2:close-segment-with-tombstone" | kafka/bin/kafka-console-producer.sh \
+  --topic user-profiles \
+  --bootstrap-server localhost:9092 \
+  --property parse.key=true \
+  --property key.separator=:
 ```
 
 **Verify Deletion:**
@@ -3320,75 +3320,117 @@ kafka/bin/kafka-topics.sh --create \
   --bootstrap-server localhost:9092
 ```
 
-**Step 2: Website Produces Order**
+**Step 2: Inventory Service Consumes  (Terminal 1)**
 ```bash
-# Create order JSON
-cat > /tmp/new-order.json << 'EOL'
-{"order_id":"ORD-2001","user_id":"USER-500","timestamp":"2026-01-01T14:30:00Z","items":[{"product_id":"LAPTOP-X1","product_name":"Dell XPS 15","quantity":1,"price":1200.00}],"total_amount":1200.00,"payment_method":"credit_card","shipping_address":{"street":"123 Main St","city":"San Francisco","state":"CA","zip":"94102"},"status":"pending"}
-EOL
+kafka/bin/kafka-console-consumer.sh \
+  --topic orders \
+  --group inventory-service \
+  --bootstrap-server localhost:9092 \
+  --timeout-ms 60000 2>/dev/null | \
+while IFS= read -r line; do
+  order_id=$(echo "$line" | jq -r '.order_id' 2>/dev/null)
+  product=$(echo "$line" | jq -r '.items[0].product_name' 2>/dev/null)
+  quantity=$(echo "$line" | jq -r '.items[0].quantity' 2>/dev/null)
+  
+  if [ "$order_id" != "null" ] && [ -n "$order_id" ]; then
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "🏭 [INVENTORY SERVICE]"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "📦 Order ID: $order_id"
+    echo "🔍 Checking stock for: $product"
+    echo "📊 Quantity requested: $quantity"
+    echo "✅ Stock available - RESERVED"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+  fi
+done
+```
 
-# Produce with order_id as key
+**Step 3: Payment Service Consumes (independently)  (Terminal 2)**
+```bash
+kafka/bin/kafka-console-consumer.sh \
+  --topic orders \
+  --group payment-service \
+  --bootstrap-server localhost:9092 \
+  --timeout-ms 60000 2>/dev/null | \
+while IFS= read -r line; do
+  order_id=$(echo "$line" | jq -r '.order_id' 2>/dev/null)
+  amount=$(echo "$line" | jq -r '.total_amount' 2>/dev/null)
+  method=$(echo "$line" | jq -r '.payment_method' 2>/dev/null)
+  user=$(echo "$line" | jq -r '.user_id' 2>/dev/null)
+  
+  if [ "$order_id" != "null" ] && [ -n "$order_id" ]; then
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "💳 [PAYMENT SERVICE]"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "📦 Order ID: $order_id"
+    echo "👤 User: $user"
+    echo "💰 Amount: \$$amount"
+    echo "💳 Method: $method"
+    echo "✅ Payment SUCCESSFUL"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+  fi
+done
+```
+
+**Step 4: Analytics Service Consumes (independently)  (Terminal 3)**
+```bash
+kafka/bin/kafka-console-consumer.sh \
+  --topic orders \
+  --group analytics-service \
+  --bootstrap-server localhost:9092 \
+  --timeout-ms 60000 2>/dev/null | \
+while IFS= read -r line; do
+  order_id=$(echo "$line" | jq -r '.order_id' 2>/dev/null)
+  amount=$(echo "$line" | jq -r '.total_amount' 2>/dev/null)
+  user=$(echo "$line" | jq -r '.user_id' 2>/dev/null)
+  items=$(echo "$line" | jq -r '.items | length' 2>/dev/null)
+  product=$(echo "$line" | jq -r '.items[0].product_name' 2>/dev/null)
+  city=$(echo "$line" | jq -r '.shipping_address.city' 2>/dev/null)
+  
+  if [ "$order_id" != "null" ] && [ -n "$order_id" ]; then
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "📊 [ANALYTICS SERVICE]"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "📦 Order ID: $order_id"
+    echo "👤 User: $user"
+    echo "💵 Revenue: \$$amount"
+    echo "🛍️  Items: $items ($product)"
+    echo "📍 Location: $city"
+    echo "✅ Data LOGGED"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo ""
+  fi
+done
+```
+
+**Step 5: Website Produces Order  (Terminal 4)**
+```bash
+echo 'ORD-2001:{"order_id":"ORD-2001","user_id":"USER-500","timestamp":"2026-01-04T19:40:00Z","items":[{"product_id":"LAPTOP-X1","product_name":"Dell XPS 15","quantity":1,"price":1200.00}],"total_amount":1200.00,"payment_method":"credit_card","shipping_address":{"street":"123 Main St","city":"San Francisco","state":"CA","zip":"94102"},"status":"pending"}' | \
 kafka/bin/kafka-console-producer.sh \
   --topic orders \
   --bootstrap-server localhost:9092 \
   --property parse.key=true \
-  --property key.separator=: << EOF
-ORD-2001:$(cat /tmp/new-order.json)
-EOF
-```
+  --property key.separator=:
 
-**Step 3: Inventory Service Consumes**
-```bash
-# Terminal 1
-kafka/bin/kafka-console-consumer.sh \
-  --topic orders \
-  --group inventory-service \
-  --bootstrap-server localhost:9092 | \
-while read order; do
-  order_id=$(echo $order | jq -r '.order_id')
-  product=$(echo $order | jq -r '.items[0].product_name')
-  echo "[INVENTORY] Processing: $order_id"
-  echo "[INVENTORY] Checking stock for: $product"
-  echo "[INVENTORY] ✅ Stock available, reserving..."
-  echo ""
-done
-```
+AND
 
-**Step 4: Payment Service Consumes (independently)**
-```bash
-# Terminal 2
-kafka/bin/kafka-console-consumer.sh \
+echo 'ORD-2002:{"order_id":"ORD-2002","user_id":"USER-501","timestamp":"2026-01-04T19:41:00Z","items":[{"product_id":"PHONE-IP15","product_name":"iPhone 15 Pro","quantity":2,"price":999.00}],"total_amount":1998.00,"payment_method":"paypal","shipping_address":{"street":"456 Oak Ave","city":"New York","state":"NY","zip":"10001"},"status":"pending"}' | \
+kafka/bin/kafka-console-producer.sh \
   --topic orders \
-  --group payment-service \
-  --bootstrap-server localhost:9092 | \
-while read order; do
-  order_id=$(echo $order | jq -r '.order_id')
-  amount=$(echo $order | jq -r '.total_amount')
-  method=$(echo $order | jq -r '.payment_method')
-  echo "[PAYMENT] Processing: $order_id"
-  echo "[PAYMENT] Charging $method: \$amount"
-  echo "[PAYMENT] ✅ Payment successful!"
-  echo ""
-done
-```
+  --bootstrap-server localhost:9092 \
+  --property parse.key=true \
+  --property key.separator=:
 
-**Step 5: Analytics Service Consumes (independently)**
-```bash
-# Terminal 3
-kafka/bin/kafka-console-consumer.sh \
+AND
+
+echo 'ORD-2004:{"order_id":"ORD-2004","user_id":"USER-500","timestamp":"2026-01-04T19:43:00Z","items":[{"product_id":"MONITOR-U27","product_name":"4K Monitor 27 inch","quantity":1,"price":450.00}],"total_amount":450.00,"payment_method":"credit_card","shipping_address":{"street":"123 Main St","city":"San Francisco","state":"CA","zip":"94102"},"status":"pending"}' | \
+kafka/bin/kafka-console-producer.sh \
   --topic orders \
-  --group analytics-service \
-  --bootstrap-server localhost:9092 | \
-while read order; do
-  order_id=$(echo $order | jq -r '.order_id')
-  amount=$(echo $order | jq -r '.total_amount')
-  user=$(echo $order | jq -r '.user_id')
-  items=$(echo $order | jq -r '.items | length')
-  echo "[ANALYTICS] Tracking revenue: \$amount"
-  echo "[ANALYTICS] User $user purchased $items items"
-  echo "[ANALYTICS] Order $order_id logged"
-  echo ""
-done
+  --bootstrap-server localhost:9092 \
+  --property parse.key=true \
+  --property key.separator=:
 ```
 
 **Benefits:**
@@ -3485,21 +3527,26 @@ Update every 10 seconds
 
 **Step 1: Continuous Order Production (simulate traffic)**
 ```bash
-# Start background producer
-while true; do
+# Start continuous order production (1 order per second)
+(while true; do
   order_id="ORD-$(date +%s)"
-  amount=$((RANDOM % 500 + 50))  # Random $50-$550
+  amount=$((RANDOM % 500 + 50))
+  products=("Laptop" "Phone" "Tablet" "Monitor" "Keyboard" "Mouse" "Headphones")
+  product=${products[$((RANDOM % 7))]}
   
-  echo "{\"order_id\":\"$order_id\",\"amount\":$amount,\"timestamp\":\"$(date -Iseconds)\"}" | \
+  echo "{\"order_id\":\"$order_id\",\"amount\":$amount,\"product\":\"$product\",\"timestamp\":\"$(date -Iseconds)\"}" | \
   kafka/bin/kafka-console-producer.sh \
     --topic orders \
-    --bootstrap-server localhost:9092
+    --bootstrap-server localhost:9092 2>/dev/null
   
   sleep 1
-done &
+done) &
 
 PRODUCER_PID=$!
-echo "Producer running with PID $PRODUCER_PID"
+echo "✅ Producer started with PID: $PRODUCER_PID"
+echo "💡 Run this to stop: kill $PRODUCER_PID"
+echo ""
+
 ```
 
 **Step 2: Analytics Consumer (aggregates data)**
@@ -3507,561 +3554,77 @@ echo "Producer running with PID $PRODUCER_PID"
 kafka/bin/kafka-console-consumer.sh \
   --topic orders \
   --group analytics-dashboard \
-  --bootstrap-server localhost:9092 | \
-awk '
-BEGIN {
+  --bootstrap-server localhost:9092 2>/dev/null | \
+{
   count=0
   total=0
-  start_time=systime()
-}
-{
-  count++
-  match($0, /"amount":([0-9]+)/, arr)
-  total += arr[1]
+  start_time=$(date +%s)
   
-  # Print stats every 10 messages
-  if (count % 10 == 0) {
-    elapsed = systime() - start_time
-    rate = (count / elapsed)
-    avg = (total / count)
-    print "📊 [DASHBOARD]"
-    print "   Orders: " count
-    print "   Revenue: $" total
-    print "   Avg Order: $" int(avg)
-    print "   Rate: " sprintf("%.2f", rate) " orders/sec"
-    print ""
-  }
-}'
+  while IFS= read -r line; do
+    # Parse amount
+    amount=$(echo "$line" | grep -o '"amount":[0-9]*' | grep -o '[0-9]*')
+    product=$(echo "$line" | grep -o '"product":"[^"]*"' | cut -d'"' -f4)
+    
+    if [ -n "$amount" ]; then
+      count=$((count + 1))
+      total=$((total + amount))
+      
+      # Print dashboard every 10 orders
+      if [ $((count % 10)) -eq 0 ]; then
+        elapsed=$(($(date +%s) - start_time))
+        if [ $elapsed -eq 0 ]; then elapsed=1; fi
+        rate=$(echo "scale=2; $count / $elapsed" | bc)
+        avg=$((total / count))
+        
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo "📊 [REAL-TIME DASHBOARD]"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo "📦 Total Orders: $count"
+        echo "💰 Total Revenue: \$$total"
+        echo "📈 Avg Order Value: \$$avg"
+        echo "⚡ Order Rate: $rate orders/sec"
+        echo "⏱️  Running: $elapsed seconds"
+        echo "🛍️  Last Product: $product"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+        echo ""
+      fi
+    fi
+  done
+}
+
 ```
 
 **Expected Output:**
 ```
-📊 [DASHBOARD]
-   Orders: 10
-   Revenue: $2345
-   Avg Order: $234
-   Rate: 0.95 orders/sec
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📊 [REAL-TIME DASHBOARD]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📦 Total Orders: 10
+💰 Total Revenue: $3417
+📈 Avg Order Value: $341
+⚡ Order Rate: 2.50 orders/sec
+⏱️  Running: 4 seconds
+🛍️  Last Product: Monitor
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-📊 [DASHBOARD]
-   Orders: 20
-   Revenue: $4892
-   Avg Order: $244
-   Rate: 0.94 orders/sec
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📊 [REAL-TIME DASHBOARD]
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📦 Total Orders: 20
+💰 Total Revenue: $6034
+📈 Avg Order Value: $301
+⚡ Order Rate: 1.33 orders/sec
+⏱️  Running: 15 seconds
+🛍️  Last Product: 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+.
+.
+.
 ```
 
 **Stop Producer:**
 ```bash
 kill $PRODUCER_PID
-```
-
----
-
-## Troubleshooting Guide
-
-Real-world issues and how to fix them!
-
-### Problem: Message Not Appearing in Consumer
-
-**Symptoms:**
-```
-Producer says "sent successfully"
-Consumer reads topic but doesn't see message
-```
-
-**Diagnosis Steps:**
-
-**1. Check Topic Exists**
-```bash
-kafka/bin/kafka-topics.sh --list --bootstrap-server localhost:9092 | grep orders
-```
-
-**2. Check Message Count**
-```bash
-# Get latest offset (should increase after producing)
-kafka/bin/kafka-run-class.sh kafka.tools.GetOffsetShell \
-  --broker-list localhost:9092 \
-  --topic orders \
-  --time -1
-
-# Before: orders:0:100
-# After:  orders:0:101  ← Should increase!
-```
-
-**3. Check Consumer Starting Position**
-```bash
-kafka/bin/kafka-consumer-groups.sh --describe \
-  --group my-consumer-group \
-  --bootstrap-server localhost:9092
-
-# If CURRENT-OFFSET = LOG-END-OFFSET:
-#   Consumer caught up, but started AFTER your message
-#   Solution: Use --from-beginning or reset offset
-```
-
-**4. Check Consumer Group Started from Latest**
-```bash
-# New group without --from-beginning
-kafka/bin/kafka-console-consumer.sh \
-  --topic orders \
-  --group new-group \
-  --bootstrap-server localhost:9092
-
-# ❌ Starts from LATEST (ignores history)
-
-# Solution:
-kafka/bin/kafka-console-consumer.sh \
-  --topic orders \
-  --group new-group \
-  --from-beginning \
-  --bootstrap-server localhost:9092
-```
-
-**5. Check Partition Assignment**
-```bash
-# Try reading each partition directly
-for p in {0..2}; do
-  echo "=== Partition $p ==="
-  kafka/bin/kafka-console-consumer.sh \
-    --topic orders \
-    --partition $p \
-    --from-beginning \
-    --max-messages 5 \
-    --bootstrap-server localhost:9092
-done
-```
-
----
-
-### Problem: Consumer Lag Growing
-
-**Symptoms:**
-```
-Consumer falling behind producer
-Lag increasing over time
-Messages delayed by minutes/hours
-```
-
-**Diagnosis:**
-```bash
-kafka/bin/kafka-consumer-groups.sh --describe \
-  --group slow-consumer \
-  --bootstrap-server localhost:9092
-
-# Output:
-# PARTITION  CURRENT  LOG-END  LAG
-# 0          1000     5000     4000  🔥 Growing!
-# 1          1200     5500     4300  🔥 Growing!
-# 2          900      4800     3900  🔥 Growing!
-```
-
-**Common Causes & Solutions:**
-
-**Cause 1: Single Consumer, Multiple Partitions**
-```
-Problem: 1 consumer handling 3 partitions (bottleneck)
-
-Solution: Add more consumers
-```
-
-```bash
-# Terminal 2
-kafka/bin/kafka-console-consumer.sh \
-  --topic orders \
-  --group slow-consumer \
-  --bootstrap-server localhost:9092
-
-# Terminal 3
-kafka/bin/kafka-console-consumer.sh \
-  --topic orders \
-  --group slow-consumer \
-  --bootstrap-server localhost:9092
-
-# Now: 3 consumers, 3 partitions (1:1)
-```
-
-**Cause 2: Slow Processing Logic**
-```
-Problem: Consumer spends 5 seconds per message
-
-Check if CPU-bound:
-top -pid <consumer_pid>
-
-Solution: Optimize code or increase batch size
-```
-
-**Cause 3: Not Enough Partitions**
-```
-Problem: 3 partitions, 10 consumers (7 idle)
-
-Solution: Increase partitions
-```
-
-```bash
-kafka/bin/kafka-topics.sh --alter \
-  --topic orders \
-  --partitions 10 \
-  --bootstrap-server localhost:9092
-
-# Now all 10 consumers can work
-```
-
-**Cause 4: Frequent Rebalancing**
-```
-Problem: Rebalances pause processing
-
-Check logs:
-tail -f consumer.log | grep -i rebalance
-
-Solution: Increase timeouts
-```
-
-```bash
-kafka/bin/kafka-console-consumer.sh \
-  --topic orders \
-  --group slow-consumer \
-  --bootstrap-server localhost:9092 \
-  --consumer-property session.timeout.ms=30000 \
-  --consumer-property max.poll.interval.ms=60000
-```
-
----
-
-### Problem: Consumer Keeps Rebalancing
-
-**Symptoms:**
-```
-Consumer logs "Rebalancing..." repeatedly
-Processing pauses frequently
-No progress made
-```
-
-**Monitor Rebalance Frequency:**
-```bash
-watch -n 1 "kafka/bin/kafka-consumer-groups.sh --describe --group my-group --bootstrap-server localhost:9092"
-
-# If CONSUMER-ID keeps changing → rebalancing
-```
-
-**Common Causes:**
-
-**Cause 1: Consumer Processing Too Slow**
-```
-Problem:
-  - Consumer processes message (40 seconds)
-  - Kafka thinks consumer dead (max.poll.interval.ms=30s)
-  - Kicks consumer out, triggers rebalance
-
-Solution: Increase max.poll.interval.ms
-```
-
-```bash
-kafka/bin/kafka-console-consumer.sh \
-  --topic orders \
-  --group my-group \
-  --bootstrap-server localhost:9092 \
-  --consumer-property max.poll.interval.ms=60000  # 60s
-```
-
-**Cause 2: Network Instability**
-```
-Problem: Heartbeat failures
-
-Solution: Increase timeouts
-```
-
-```bash
-kafka/bin/kafka-console-consumer.sh \
-  --topic orders \
-  --group my-group \
-  --bootstrap-server localhost:9092 \
-  --consumer-property heartbeat.interval.ms=3000 \
-  --consumer-property session.timeout.ms=30000
-```
-
-**Cause 3: Consumers Joining/Leaving Rapidly**
-```
-Problem: Testing, starting/stopping frequently
-
-Solution: Don't start/stop rapidly in production
-Use group.initial.rebalance.delay.ms in production
-```
-
-**Cause 4: Consumer Crashes**
-```
-Check logs for exceptions:
-tail -f consumer.log | grep -i exception
-
-Fix the crash (OOM, null pointer, etc.)
-```
-
----
-
-### Problem: Topic Not Found
-
-**Symptoms:**
-```
-Producer/consumer error: "Topic 'xyz' not found"
-```
-
-**Diagnosis:**
-
-**1. Check Topic Exists**
-```bash
-kafka/bin/kafka-topics.sh --list --bootstrap-server localhost:9092 | grep xyz
-
-# If empty → doesn't exist
-```
-
-**2. Check Spelling**
-```bash
-kafka/bin/kafka-topics.sh --list --bootstrap-server localhost:9092
-
-# Common mistakes:
-#   "user-events" vs "user_events"
-#   "Orders" vs "orders" (case sensitive!)
-```
-
-**3. Check Auto-Create Setting**
-```bash
-grep auto.create.topics.enable ~/kafka-learning-lab/kafka/config/server-0.properties
-
-# If false → topics not auto-created
-```
-
-**Solution: Create Topic**
-```bash
-kafka/bin/kafka-topics.sh --create \
-  --topic xyz \
-  --partitions 3 \
-  --replication-factor 2 \
-  --bootstrap-server localhost:9092
-```
-
----
-
-### Problem: NotEnoughReplicasException
-
-**Error:**
-```
-org.apache.kafka.common.errors.NotEnoughReplicasException: 
-  Number of insync replicas = 1 < min.insync.replicas = 2
-```
-
-**What It Means:**
-```
-Topic requires: min.insync.replicas=2
-Currently available: Only 1 replica in-sync
-Producer using: acks=all
-→ Can't satisfy requirement
-→ Write rejected
-```
-
-**Diagnosis:**
-
-**1. Check ISR**
-```bash
-kafka/bin/kafka-topics.sh --describe \
-  --topic payments \
-  --bootstrap-server localhost:9092
-
-# Output:
-# Partition: 0  Replicas: 0,1  Isr: 0  ← Only 1 in-sync!
-```
-
-**2. Check Broker Status**
-```bash
-kafka/bin/zookeeper-shell.sh localhost:2181 ls /brokers/ids
-
-# Expected: [0,1,2]
-# If [0,2] → Broker 1 is down!
-```
-
-**Solutions:**
-
-**Option 1: Restart Missing Broker**
-```bash
-cd ~/kafka-learning-lab
-./scripts/start-broker-1.sh
-
-# Wait for sync
-sleep 10
-
-# Verify ISR restored
-kafka/bin/kafka-topics.sh --describe --topic payments --bootstrap-server localhost:9092
-
-# Should show: Isr: 0,1 ✅
-```
-
-**Option 2: Lower min.insync.replicas (Temporary)**
-```bash
-# Reduce to 1 (emergency only!)
-kafka/bin/kafka-configs.sh --alter \
-  --entity-type topics \
-  --entity-name payments \
-  --add-config min.insync.replicas=1 \
-  --bootstrap-server localhost:9092
-
-# ⚠️ Weaker durability!
-```
-
-**Option 3: Use acks=1 (Not Recommended)**
-```bash
-# Producer only waits for leader
-kafka/bin/kafka-console-producer.sh \
-  --topic payments \
-  --bootstrap-server localhost:9092 \
-  --producer-property acks=1
-
-# ⚠️ Can lose data if leader crashes!
-```
-
----
-
-### Problem: Out of Disk Space
-
-**Symptoms:**
-```
-Broker logs: "No space left on device"
-Producers get errors
-Can't accept new messages
-```
-
-**Check Disk Usage:**
-```bash
-# Check partition sizes
-du -sh /tmp/kafka-logs-*
-
-# Example:
-# 15G  /tmp/kafka-logs-0
-# 18G  /tmp/kafka-logs-1
-# 16G  /tmp/kafka-logs-2
-
-# Check available space
-df -h /tmp
-
-# Output:
-# Size  Used  Avail  Use%
-# 500G  495G    5G   99%  🔥 Almost full!
-```
-
-**Solutions:**
-
-**Option 1: Reduce Retention**
-```bash
-# Reduce to 1 hour (triggers cleanup)
-kafka/bin/kafka-configs.sh --alter \
-  --entity-type topics \
-  --entity-name user-activity \
-  --add-config retention.ms=3600000 \
-  --bootstrap-server localhost:9092
-
-# Wait for log cleaner (runs every 5 minutes)
-```
-
-**Option 2: Delete Old Topics**
-```bash
-kafka/bin/kafka-topics.sh --delete \
-  --topic old-test-topic \
-  --bootstrap-server localhost:9092
-
-# Verify space freed
-du -sh /tmp/kafka-logs-*
-```
-
-**Option 3: Manual Cleanup (Brokers Stopped)**
-```bash
-# ⚠️ DANGEROUS! Only when brokers stopped
-
-# Stop all
-./scripts/stop-all.sh
-
-# Remove specific topic data
-rm -rf /tmp/kafka-logs-*/old-topic-*
-
-# Restart
-./scripts/start-zookeeper.sh &
-sleep 5
-./scripts/start-broker-0.sh &
-./scripts/start-broker-1.sh &
-./scripts/start-broker-2.sh &
-```
-
-**Option 4: Use Cleanup Script**
-```bash
-# Pre-built cleanup (stops everything, deletes all data)
-./scripts/cleanup-logs.sh
-
-# ⚠️ Use with caution!
-```
-
----
-
-### Problem: Broker Not Starting
-
-**Symptoms:**
-```
-./scripts/start-broker-0.sh runs
-No errors shown
-But broker doesn't start
-```
-
-**Diagnosis:**
-
-**1. Check Logs**
-```bash
-tail -n 100 ~/kafka-learning-lab/kafka/logs/server.log
-
-# Look for ERROR
-grep ERROR ~/kafka-learning-lab/kafka/logs/server.log
-```
-
-**2. Common Errors:**
-
-**Error: Port Already in Use**
-```
-ERROR: Address already in use (java.net.BindException)
-
-Solution:
-lsof -i :9092
-kill -9 <PID>
-```
-
-**Error: ZooKeeper Not Running**
-```
-ERROR: Connection to zookeeper localhost:2181 failed
-
-Solution:
-./scripts/start-zookeeper.sh
-# Wait 10 seconds
-./scripts/start-broker-0.sh
-```
-
-**Error: Invalid Configuration**
-```
-ERROR: Property broker.id is required
-
-Solution:
-vim config/server-0.properties
-# Ensure: broker.id=0
-```
-
-**Error: Lock File Exists**
-```
-ERROR: Log directory /tmp/kafka-logs-0 is already locked
-
-Solution:
-rm /tmp/kafka-logs-0/.lock
-./scripts/start-broker-0.sh
-```
-
-**3. Verify Broker Started**
-```bash
-# Check process
-ps aux | grep kafka.Kafka
-
-# Check ZooKeeper registration
-kafka/bin/zookeeper-shell.sh localhost:2181 ls /brokers/ids
-# Should show: [0]
 ```
 
 ---
@@ -4157,7 +3720,7 @@ kafka/bin/kafka-consumer-groups.sh --reset-offsets --group NAME --topic TOPIC --
 ### Monitoring Operations
 ```bash
 # Get offsets
-kafka/bin/kafka-run-class.sh kafka.tools.GetOffsetShell --broker-list localhost:9092 --topic NAME --time -1
+kafka/bin/kafka-get-offsets.sh --broker-list localhost:9092 --topic NAME --time -1
 
 # List brokers
 kafka/bin/zookeeper-shell.sh localhost:2181 ls /brokers/ids
@@ -4196,7 +3759,6 @@ kafka/bin/kafka-configs.sh --describe --entity-type topics --entity-name NAME --
 - ✅ Partition strategies and hot partition handling
 - ✅ Advanced features (transactions, compaction, quotas)
 - ✅ Real-world scenarios (e-commerce, fraud, analytics)
-- ✅ Troubleshooting common issues
 
 **What's Next?**
 
@@ -4223,19 +3785,3 @@ kafka/bin/kafka-configs.sh --describe --entity-type topics --entity-name NAME --
    - Grafana dashboards
    - Alerting rules
    - Performance tuning
-
-**Practice Exercises:**
-
-1. **Mini Order Pipeline**: Build producer → topic → 3 consumers
-2. **Broker Failure**: Stop broker-1, observe automatic recovery
-3. **Compacted Users**: Create compacted topic, test tombstones
-4. **Manual Offsets**: Implement consumer with offset commits (Python)
-5. **Lag Alerting**: Set up monitoring for consumer lag
-
-**Keep Learning!** 🚀
-
-Kafka is powerful but takes practice. Don't worry about memorizing commands - keep this guide handy as reference. The more you use Kafka, the more natural it becomes!
-
-**Questions?** Add them to `docs/09-troubleshooting.md` as you work through examples.
-
-**Happy Kafka-ing!** ☕
