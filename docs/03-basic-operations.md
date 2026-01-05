@@ -26,7 +26,6 @@ Welcome to Apache Kafka learning journey. This guide is designed to take you fro
 - [Offset Management](#offset-management)
 - [Advanced Topics](#advanced-topics)
 - [Real-World Scenarios](#real-world-scenarios)
-- [Troubleshooting Guide](#troubleshooting-guide)
 - [Command Reference](#command-reference-cheat-sheet)
 
 ---

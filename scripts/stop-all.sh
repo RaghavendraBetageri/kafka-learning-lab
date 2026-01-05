@@ -1,10 +1,12 @@
 #!/bin/bash
-# Stop all Kafka brokers and ZooKeeper
+# Stop Kafka cluster cleanly
 
-echo "Stopping all Kafka brokers..."
-pkill -f 'kafka.Kafka'
+echo "Stopping Kafka brokers..."
+kafka/bin/kafka-server-stop.sh
+
+sleep 3
 
 echo "Stopping ZooKeeper..."
-pkill -f 'zookeeper'
+kafka/bin/zookeeper-server-stop.sh
 
-echo "All services stopped."
+echo "All Kafka services stopped."
