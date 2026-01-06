@@ -133,23 +133,23 @@ kafka/bin/kafka-topics.sh --describe \
 
 **Expected Output:**
 ```
-Topic: fault-test   TopicId: xyz123   PartitionCount: 3   ReplicationFactor: 3   Configs: min.insync.replicas=2
-    Topic: fault-test   Partition: 0    Leader: 1    Replicas: 1,2,0    Isr: 1,2,0
-    Topic: fault-test   Partition: 1    Leader: 2    Replicas: 2,0,1    Isr: 2,0,1
-    Topic: fault-test   Partition: 2    Leader: 0    Replicas: 0,1,2    Isr: 0,1,2
+Topic: fault-test       TopicId: DTTOJR5AQcqUUpNxVPkauA PartitionCount: 3       ReplicationFactor: 3    Configs: min.insync.replicas=2,segment.bytes=1073741824
+        Topic: fault-test       Partition: 0    Leader: 2       Replicas: 2,0,1 Isr: 2,0,1      Elr: N/A        LastKnownElr: N/A
+        Topic: fault-test       Partition: 1    Leader: 1       Replicas: 1,2,0 Isr: 1,2,0      Elr: N/A        LastKnownElr: N/A
+        Topic: fault-test       Partition: 2    Leader: 0       Replicas: 0,1,2 Isr: 0,1,2      Elr: N/A        LastKnownElr: N/A
 ```
 
 **Understanding This Output:**
 
 ```
 Partition 0:
-  Leader: Broker 1 (handles all reads/writes)
-  Replicas: 1,2,0 (data exists on all 3 brokers)
-  ISR: 1,2,0 (all 3 replicas are in-sync ✅)
+  Leader: Broker 2 (handles all reads/writes)
+  Replicas: 2,0,1 (data exists on all 3 brokers)
+  ISR: 2,0,1 (all 3 replicas are in-sync ✅)
 
 Visual:
 ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│  Broker 0   │────▶│  Broker 1   │◀────│  Broker 2   │
+│  Broker 0   │────▶│  Broker 2   │◀────│  Broker 1   │
 │  (Follower) │     │  (LEADER)   │     │  (Follower) │
 │  Replica    │     │  Partition 0│     │  Replica    │
 └─────────────┘     └─────────────┘     └─────────────┘
@@ -163,7 +163,7 @@ cat > ~/kafka-learning-lab/scripts/monitor-cluster.sh << 'EOF'
 # Real-time cluster monitoring (macOS compatible)
 
 TOPIC=${1:-fault-test}
-BOOTSTRAP_SERVER=${2:-localhost:9092}
+BOOTSTRAP_SERVER=${2:-localhost:9092,localhost:9093,localhost:9094}
 
 echo "===== Monitoring Topic: $TOPIC ====="
 echo "Running on: $(uname -s) $(uname -m)"
@@ -236,7 +236,7 @@ Producer                          Consumers
 ┌─────────────────────────────────────────┐
 │           Partition 0                   │
 │  ┌──────────────┐                       │
-│  │ Broker 1     │ ◀─── LEADER           │
+│  │ Broker 2     │ ◀─── LEADER           │
 │  │ (Leader)     │      Handles all I/O  │
 │  └──────────────┘                       │
 │         │                               │
@@ -244,7 +244,7 @@ Producer                          Consumers
 │         ├──────────────┬─────────────┐  │
 │         ▼              ▼             ▼  │
 │  ┌──────────┐   ┌──────────┐  ┌──────────┐
-│  │Broker 0  │   │Broker 1  │  │Broker 2  │
+│  │Broker 0  │   │Broker 2  │  │Broker 1  │
 │  │(Follower)│   │(Leader)  │  │(Follower)│
 │  │ Replica  │   │          │  │ Replica  │
 │  └──────────┘   └──────────┘  └──────────┘
@@ -491,15 +491,16 @@ kafka/bin/kafka-topics.sh --describe \
 
 **Sample Output:**
 ```
-Topic: fault-test   Partition: 0    Leader: 1    Replicas: 1,2,0    Isr: 1,2,0
-Topic: fault-test   Partition: 1    Leader: 2    Replicas: 2,0,1    Isr: 2,0,1
-Topic: fault-test   Partition: 2    Leader: 0    Replicas: 0,1,2    Isr: 0,1,2
+Topic: fault-test       TopicId: DTTOJR5AQcqUUpNxVPkauA PartitionCount: 3       ReplicationFactor: 3    Configs: min.insync.replicas=2,segment.bytes=1073741824
+        Topic: fault-test       Partition: 0    Leader: 2       Replicas: 2,0,1 Isr: 2,0,1      Elr: N/A        LastKnownElr: N/A
+        Topic: fault-test       Partition: 1    Leader: 1       Replicas: 1,2,0 Isr: 1,2,0      Elr: N/A        LastKnownElr: N/A
+        Topic: fault-test       Partition: 2    Leader: 0       Replicas: 0,1,2 Isr: 0,1,2      Elr: N/A        LastKnownElr: N/A
 ```
 
 **Record This Information:**
 ```
-Partition 0: Leader = Broker 1
-Partition 1: Leader = Broker 2
+Partition 0: Leader = Broker 2
+Partition 1: Leader = Broker 1
 Partition 2: Leader = Broker 0
 ```
 
@@ -544,21 +545,7 @@ kafka/bin/kafka-console-consumer.sh \
 
 **In Terminal 4:**
 
-```bash
-cd ~/kafka-learning-lab
-
-# Find broker 1 process (leader of partition 0)
-pgrep -f "server-1.properties"
-
-# Sample output: 12346
-
-# Kill it (simulate crash) - macOS command
-pkill -9 -f "server-1.properties"
-
-# Confirm it's dead
-pgrep -f "server-1.properties"
-# Should return nothing
-```
+press `Ctrl+C` on broker 2 terminal to kill it
 
 ### Step 4: Observe Recovery
 
@@ -568,76 +555,19 @@ You should see ISR change within 1-2 seconds:
 
 ```
 Before:
-Topic: fault-test   Partition: 0    Leader: 1    Replicas: 1,2,0    Isr: 1,2,0
+Topic: fault-test       Partition: 0    Leader: 2       Replicas: 2,0,1 Isr: 2,0,1      Elr: N/A        LastKnownElr: N/A
 
 After (~2 seconds):
-Topic: fault-test   Partition: 0    Leader: 2    Replicas: 1,2,0    Isr: 2,0
-                                      ▲ Changed!                        ▲ Broker 1 removed!
+Topic: fault-test       Partition: 0    Leader: 0       Replicas: 2,0,1 Isr: 0,1        Elr: N/A        LastKnownElr: N/A
 ```
 
-**Watch Terminal 2 (Producer):**
-
-You might see a brief pause (1-2 seconds), then resumes:
-
-```
-Message at 10:15:30
-Message at 10:15:31
-[WARN] Connection to broker 1 failed (org.apache.kafka.clients.NetworkClient)
-[INFO] Cluster metadata updated, partition 0 leader is now broker 2
-Message at 10:15:33  ← Brief gap (1-2 seconds)
-Message at 10:15:34  ← Resumed!
-```
-
-**Watch Terminal 3 (Consumer):**
-
-Should continue receiving messages (might have 1-2 second gap):
-
-```
-Message at 10:15:30
-Message at 10:15:31
-[gap 1-2 seconds]
-Message at 10:15:33
-Message at 10:15:34
-```
-
-### Step 5: Analyze What Happened
-
-**Timeline Breakdown:**
-
-```
-10:15:31.000 - Broker 1 killed (pkill -9)
-10:15:31.100 - Producer's next write attempt fails
-10:15:31.200 - Controller detects broker 1 is dead (heartbeat timeout)
-10:15:31.500 - Controller initiates leader election
-10:15:31.700 - Broker 2 elected as new leader for partition 0
-10:15:31.900 - Metadata propagated to all clients
-10:15:32.000 - Producer discovers new leader (Broker 2)
-10:15:32.100 - Writes resume successfully
-```
-
-**Total Downtime: ~1-2 seconds** ✅
-
-**Check ISR Status in Terminal 4:**
-```bash
-kafka/bin/kafka-topics.sh --describe \
-  --topic fault-test \
-  --bootstrap-server localhost:9092 | grep "Partition: 0"
-```
-
-**Expected:**
-```
-Partition: 0    Leader: 2    Replicas: 1,2,0    Isr: 2,0
-                                                      ▲
-                                        Only 2/3 replicas in sync now!
-```
-
-### Step 6: Restart Dead Broker
+### Step 5: Restart Dead Broker
 
 **In Terminal 4:**
 
 ```bash
 # Restart broker 1
-./scripts/start-broker-1.sh
+./scripts/start-broker-2.sh
 
 # Wait 10 seconds for it to catch up
 sleep 10
@@ -650,19 +580,17 @@ kafka/bin/kafka-topics.sh --describe \
 
 **Expected:**
 ```
-Partition: 0    Leader: 2    Replicas: 1,2,0    Isr: 2,0,1
-                                                      ▲
-                                        Broker 1 rejoined ISR! ✅
+Topic: fault-test       Partition: 0    Leader: 0       Replicas: 2,0,1 Isr: 0,1,2      Elr: N/A        LastKnownElr: N/A
 ```
 
 **What Happened:**
-1. Broker 1 restarted
+1. Broker 2 restarted
 2. Loaded partition logs from disk
-3. Started replicating from new leader (Broker 2)
+3. Started replicating from new leader (Broker 0)
 4. Caught up within 10 seconds
 5. Controller added it back to ISR
 
-**Note:** Broker 1 is now a FOLLOWER (not leader anymore). Leadership doesn't automatically return.
+**Note:** Broker 2 is now a FOLLOWER (not leader anymore). Leadership doesn't automatically return.
 
 ### Step 7: Verify No Data Loss
 
@@ -678,10 +606,10 @@ kafka/bin/kafka-run-class.sh org.apache.kafka.tools.GetOffsetShell \
 
 **Expected:** Message count matches what you produced (no loss!) ✅
 
-### Step 8: Stop Continuous Consumer
+### Step 8: Stop Continuous Consumer and Producer
 
 ```bash
-# In Terminal 3, press Ctrl+C to stop consumer
+# In Terminal, press Ctrl+C to stop
 ```
 
 ### Lab 1 Takeaways
@@ -696,152 +624,223 @@ kafka/bin/kafka-run-class.sh org.apache.kafka.tools.GetOffsetShell \
 
 ## Lab 2: Understanding ISR Behavior
 
-**Goal:** Deep dive into ISR mechanics by simulating slow replicas.
+**Goal:** Watch a broker fall out of sync and rejoin in real-time.
 
-**Time:** 15 minutes
+**Core Concept:** ISR = "In-Sync Replicas" = Brokers that are keeping up with the leader. If a broker is too slow or frozen for 30 seconds, Kafka kicks it out of ISR.
 
-### Experiment 2.1: Replica Lag Simulation
+***
 
-We'll make a follower fall out of ISR by freezing it.
+### Setup: One Terminal, Simple Commands
 
-**Step 1: Check Current ISR**
+**Step 1: Check Your Starting Point**
 
 ```bash
+# See current ISR for fault-test topic
 kafka/bin/kafka-topics.sh --describe \
   --topic fault-test \
   --bootstrap-server localhost:9092
 ```
 
-**All should show ISR with 3 replicas:** `Isr: 0,1,2` or similar.
+**Expected Output:**
+```
+Topic: fault-test       TopicId: DTTOJR5AQcqUUpNxVPkauA PartitionCount: 3       ReplicationFactor: 3    Configs: min.insync.replicas=2,segment.bytes=1073741824
+        Topic: fault-test       Partition: 0    Leader: 2       Replicas: 2,0,1 Isr: 2,1,0      Elr: N/A        LastKnownElr: N/A
+        Topic: fault-test       Partition: 1    Leader: 2       Replicas: 1,2,0 Isr: 2,0,1      Elr: N/A        LastKnownElr: N/A
+        Topic: fault-test       Partition: 2    Leader: 2       Replicas: 0,1,2 Isr: 2,0,1      Elr: N/A        LastKnownElr: N/A
+```
 
-**Step 2: Pause a Follower Broker**
+**What you see:** `Isr: 1,2,0` means brokers 1, 2, and 0 are all in-sync. ✅
+
+***
+
+### The Experiment: Freeze and Watch
+
+**Step 2: Freeze Broker 0**
 
 ```bash
-# Find broker 0 PID
-pgrep -f "server-0.properties"
-
-# Pause the process (simulate extreme slowness) - macOS command
+# Freeze broker 0 (like it hung/crashed but process still exists)
 pkill -STOP -f "server-0.properties"
 
-# Verify it's paused (should still show in process list)
-ps aux | grep "server-0.properties" | grep -v grep
+echo "✅ Broker 0 is now FROZEN"
+echo "⏱️  Starting timer..."
+date +%H:%M:%S
 ```
 
-**What `pkill -STOP` does:**
-- Pauses the process (doesn't kill it)
-- Process stops processing any requests
-- Simulates a "frozen" broker
+**What just happened?** Broker 0 can't respond to anything now. It's frozen in place.
 
-**Step 3: Start a Monitoring Loop**
+***
 
-**Terminal 2:**
+**Step 3: Watch ISR Change (Live Monitoring)**
+
+Open a **second terminal** and run this:
+
 ```bash
-# Watch ISR changes every 2 seconds
-while true; do
-  clear
-  echo "=== ISR Status at $(date +%H:%M:%S) ==="
-  kafka/bin/kafka-topics.sh --describe \
-    --topic fault-test \
-    --bootstrap-server localhost:9092
-  sleep 2
-done
+./scripts/monitor-cluster.sh fault-test
 ```
 
-**Step 4: Produce Messages**
+**What you'll see (timeline):**
 
-**Terminal 3:**
+```
+⏰ Time: 20:15:00 (T=0 seconds)
+Partition: 0    Isr: 1,2,0    ← Broker 0 still in ISR
+
+⏰ Time: 20:15:10 (T=10 seconds)
+Partition: 0    Isr: 1,2,0    ← Still there...
+
+⏰ Time: 20:15:20 (T=20 seconds)
+Partition: 0    Isr: 1,2,0    ← Still hanging in...
+
+⏰ Time: 20:15:30 (T=30 seconds)
+Partition: 0    Isr: 1,2,0    ← Almost at threshold...
+
+⏰ Time: 20:15:40 (T=40 seconds)
+Partition: 0    Isr: 1,2      ← GONE! Broker 0 kicked out! ❌
+Partition: 2    Isr: 1,2      ← Also removed from partition 2!
+```
+
+**💡 What you're seeing:** After ~30-40 seconds, Kafka realizes broker 0 is dead/frozen and removes it from ISR.
+
+***
+
+**Step 4: Unfreeze Broker 0**
+
+Go back to **first terminal**:
+
 ```bash
-# Produce 50 messages quickly
-for i in {1..50}; do
-  echo "Message $i - ISR test"
-done | kafka/bin/kafka-console-producer.sh \
-  --topic fault-test \
-  --bootstrap-server localhost:9092
-```
-
-**Step 5: Observe ISR Change**
-
-**Watch Terminal 2:**
-
-**Timeline:**
-
-```
-T=0s:  Isr: 0,1,2  ← All healthy
-T=5s:  Isr: 0,1,2  ← Broker 0 paused, but within threshold
-T=10s: Isr: 0,1,2  ← Still within threshold
-T=15s: Isr: 0,1,2  ← Still hanging in there...
-T=30s: Isr: 1,2    ← Broker 0 removed! (replica.lag.time.max.ms hit)
-                      ▲
-                   Broker 0 missing!
-```
-
-**The 30-second threshold is `replica.lag.time.max.ms` (default: 30000ms)**
-
-**Step 6: Resume Broker**
-
-**Terminal 4:**
-```bash
-# Resume the paused process - macOS command
+# Unfreeze broker 0
 pkill -CONT -f "server-0.properties"
 
-# Verify it's running again
-pgrep -f "server-0.properties"
+echo "✅ Broker 0 is now RUNNING again"
+echo "⏱️  Watch it rejoin ISR..."
+date +%H:%M:%S
 ```
 
-**Step 7: Watch ISR Rejoin**
-
-**Continue watching Terminal 2:**
+**Watch the second terminal:**
 
 ```
-T=35s: Isr: 1,2      ← Broker 0 still out
-T=40s: Isr: 1,2      ← Catching up (reading from leader)...
-T=45s: Isr: 0,1,2    ← Rejoined! ✅
+⏰ Time: 20:16:00
+Partition: 0    Isr: 1,2      ← Broker 0 still out
+
+⏰ Time: 20:16:10
+Partition: 0    Isr: 1,2      ← Catching up from leader...
+
+⏰ Time: 20:16:20
+Partition: 0    Isr: 1,2,0    ← BACK! Rejoined ISR! ✅
 ```
 
-**Stop the monitoring loop (Ctrl+C in Terminal 2)**
+**💡 What you're seeing:** Broker 0 catches up by reading missing data from the leader, then rejoins ISR.
 
-### Experiment 2.2: Under-Replicated Partitions
+***
 
-**Check Cluster-Wide ISR Health:**
+**Step 5: Stop Monitoring**
 
-```bash
-# Show all under-replicated partitions
-kafka/bin/kafka-topics.sh --describe \
-  --under-replicated-partitions \
-  --bootstrap-server localhost:9092
+In the second terminal, press **Ctrl+C** to stop the loop.
+
+***
+
+### Visual Summary
+
+```
+==========================================
+  Kafka Cluster Health Monitor
+  Time: 10:13:56
+==========================================
+
+📊 Topic Information:
+Topic: fault-test       TopicId: DTTOJR5AQcqUUpNxVPkauA PartitionCount: 3       ReplicationFactor: 3    Configs: min.insync.replicas=2,segment.bytes=1073741824
+        Topic: fault-test       Partition: 0    Leader: 2       Replicas: 2,0,1 Isr: 2,1,0      Elr: N/A        LastKnownElr: N/A
+        Topic: fault-test       Partition: 1    Leader: 1       Replicas: 1,2,0 Isr: 2,1,0      Elr: N/A        LastKnownElr: N/A
+        Topic: fault-test       Partition: 2    Leader: 1       Replicas: 0,1,2 Isr: 2,1,0      Elr: N/A        LastKnownElr: N/A
+
+  📡 Connected via localhost:9092 (Broker 0)
+
+==========================================
+🖥️  Broker Process Status:
+
+  ✅ Broker 0 - PID: 92509 - Port: 9092 - RUNNING - ✅ Port responding
+  ✅ Broker 1 - PID: 92986 - Port: 9093 - RUNNING - ✅ Port responding
+  ✅ Broker 2 - PID: 93406 - Port: 9094 - RUNNING - ✅ Port responding
+
+==========================================
+💾 Disk Usage (Kafka Logs):
+
+  🟡  /System/Volumes/Data: 74% used (55Gi free)
+
+==========================================
+
+  Kafka Cluster Health Monitor
+  Time: 10:14:22
+==========================================
+
+📊 Topic Information:
+Topic: fault-test       TopicId: DTTOJR5AQcqUUpNxVPkauA PartitionCount: 3       ReplicationFactor: 3    Configs: min.insync.replicas=2,segment.bytes=1073741824
+        Topic: fault-test       Partition: 0    Leader: 2       Replicas: 2,0,1 Isr: 2,1        Elr: N/A        LastKnownElr: N/A
+        Topic: fault-test       Partition: 1    Leader: 1       Replicas: 1,2,0 Isr: 2,1        Elr: N/A        LastKnownElr: N/A
+        Topic: fault-test       Partition: 2    Leader: 1       Replicas: 0,1,2 Isr: 2,1        Elr: N/A        LastKnownElr: N/A
+
+  📡 Connected via localhost:9093 (Broker 1)
+
+==========================================
+🖥️  Broker Process Status:
+
+  ✅ Broker 0 - PID: 92509 - Port: 9092 - RUNNING - ✅ Port responding
+  ✅ Broker 1 - PID: 92986 - Port: 9093 - RUNNING - ✅ Port responding
+  ✅ Broker 2 - PID: 93406 - Port: 9094 - RUNNING - ✅ Port responding
+
+==========================================
+💾 Disk Usage (Kafka Logs):
+
+  🟡  /System/Volumes/Data: 74% used (55Gi free)
+
+==========================================
+Next refresh in 3 seconds... (Ctrl+C to stop)
+
+==========================================
+  Kafka Cluster Health Monitor
+  Time: 10:14:30
+==========================================
+
+📊 Topic Information:
+Topic: fault-test       TopicId: DTTOJR5AQcqUUpNxVPkauA PartitionCount: 3       ReplicationFactor: 3    Configs: min.insync.replicas=2,segment.bytes=1073741824
+        Topic: fault-test       Partition: 0    Leader: 2       Replicas: 2,0,1 Isr: 2,1,0      Elr: N/A        LastKnownElr: N/A
+        Topic: fault-test       Partition: 1    Leader: 1       Replicas: 1,2,0 Isr: 2,1,0      Elr: N/A        LastKnownElr: N/A
+        Topic: fault-test       Partition: 2    Leader: 1       Replicas: 0,1,2 Isr: 2,1,0      Elr: N/A        LastKnownElr: N/A
+
+  📡 Connected via localhost:9092 (Broker 0)
+
+==========================================
+🖥️  Broker Process Status:
+
+  ✅ Broker 0 - PID: 92509 - Port: 9092 - RUNNING - ✅ Port responding
+  ✅ Broker 1 - PID: 92986 - Port: 9093 - RUNNING - ✅ Port responding
+  ✅ Broker 2 - PID: 93406 - Port: 9094 - RUNNING - ✅ Port responding
+
+==========================================
+💾 Disk Usage (Kafka Logs):
+
+  🟡  /System/Volumes/Data: 74% used (55Gi free)
+
+==========================================
+Next refresh in 3 seconds... (Ctrl+C to stop)
+
+
 ```
 
-**If you run this during the pause, you'll see:**
-```
-Topic: fault-test   Partition: 2    Leader: 0    Replicas: 0,1,2    Isr: 1,2
-                                                                      ▲
-                                                          Only 2/3 in sync!
-```
+***
 
-**After broker resumes, run again:**
-```bash
-kafka/bin/kafka-topics.sh --describe \
-  --under-replicated-partitions \
-  --bootstrap-server localhost:9092
-```
+### Key Takeaways (Simple Version)
 
-**Should show nothing (empty output) = All healthy!** ✅
-
-### Lab 2 Takeaways
-
-✅ **Replicas removed from ISR after** `replica.lag.time.max.ms` (default 30s)  
-✅ **Replicas automatically rejoin ISR** when caught up  
-✅ **Under-replicated partitions** = health warning (monitor in production!)  
-✅ **Producers still work** as long as `min.insync.replicas` met  
-✅ **`pkill -STOP` is great for testing** without killing the process
+✅ **ISR = replicas that are "caught up" with the leader**  
+✅ **Frozen/slow broker → kicked out after ~30 seconds**  
+✅ **Recovered broker → automatically rejoins when caught up**  
+✅ **Under-replicated partitions = warning sign** (check this in production!)  
+✅ **Kafka keeps working** even with broker out of ISR (as long as min.insync.replicas is met)
 
 ***
 
 ## Lab 3: Testing min.insync.replicas
 
 **Goal:** See what happens when ISR falls below `min.insync.replicas`.
-
-**Time:** 20 minutes
 
 ### Setup
 
@@ -875,7 +874,9 @@ kafka/bin/kafka-topics.sh --describe \
   --topic strict-durability \
   --bootstrap-server localhost:9092
 
-# Should show: Isr: 0,1,2 (all 3) or similar order
+# Should show: 
+Topic: strict-durability        TopicId: BY03l_uKSHefOB9NoMHotQ PartitionCount: 1       ReplicationFactor: 3    Configs: min.insync.replicas=3,segment.bytes=1073741824
+        Topic: strict-durability        Partition: 0    Leader: 0       Replicas: 0,2,1 Isr: 0,2,1      Elr: N/A        LastKnownElr: N/A
 ```
 
 **Produce a test message:**
@@ -886,26 +887,27 @@ kafka/bin/kafka-console-producer.sh \
   --bootstrap-server localhost:9092 \
   --producer-property acks=all
 ```
+```bash
+kafka/bin/kafka-console-consumer.sh \
+  --topic strict-durability \
+  --from-beginning \
+  --bootstrap-server localhost:9092 \
+  --property print.timestamp=true
 
+Output:
+CreateTime:1767675291061        Test message 1 - All replicas healthy
+```
 **Expected:** ✅ **Success!** Message accepted.
 
 ### Scenario 2: Kill One Broker (Should Fail!)
 
 ```bash
 # Identify which broker is NOT the leader
-kafka/bin/kafka-topics.sh --describe \
-  --topic strict-durability \
-  --bootstrap-server localhost:9092 | grep "Partition: 0"
-
-# Example output:
-# Partition: 0  Leader: 1  Replicas: 1,0,2  Isr: 1,0,2
-
 # Kill a follower (e.g., broker 2)
 pkill -9 -f "server-2.properties"
+# or Do Ctrl+C in respective terminal
 
 # Wait for ISR to update (30+ seconds)
-echo "Waiting 35 seconds for ISR to shrink..."
-sleep 35
 
 # Check ISR now
 kafka/bin/kafka-topics.sh --describe \
@@ -933,8 +935,10 @@ kafka/bin/kafka-console-producer.sh \
 
 **Error You'll See:**
 ```
-org.apache.kafka.common.errors.NotEnoughReplicasException: 
-Messages are rejected since there are fewer in-sync replicas than required.
+[2026-01-06 10:31:49,640] WARN [Producer clientId=console-producer] Got error produce response with correlation id 5 on topic-partition strict-durability-0, retrying (2 attempts left). Error: NOT_ENOUGH_REPLICAS (org.apache.kafka.clients.producer.internals.Sender)
+.
+.
+org.apache.kafka.common.errors.NotEnoughReplicasException: Messages are rejected since there are fewer in-sync replicas than required.
 ```
 
 **Why This Happened:**
@@ -961,6 +965,10 @@ kafka/bin/kafka-configs.sh --describe \
   --entity-type topics \
   --entity-name strict-durability \
   --bootstrap-server localhost:9092
+
+# output:
+Topic: strict-durability        TopicId: BY03l_uKSHefOB9NoMHotQ PartitionCount: 1       ReplicationFactor: 3    Configs: min.insync.replicas=2,segment.bytes=1073741824
+        Topic: strict-durability        Partition: 0    Leader: 0       Replicas: 0,2,1 Isr: 0,1        Elr: N/A        LastKnownElr: N/A
 ```
 
 **Try producing again:**
@@ -981,8 +989,6 @@ kafka/bin/kafka-console-producer.sh \
 ./scripts/start-broker-2.sh
 
 # Wait for catch-up
-echo "Waiting 15 seconds for broker to catch up..."
-sleep 15
 
 # Verify ISR
 kafka/bin/kafka-topics.sh --describe \
@@ -992,9 +998,8 @@ kafka/bin/kafka-topics.sh --describe \
 
 **Expected:**
 ```
-Partition: 0    Leader: 1    Replicas: 1,0,2    Isr: 1,0,2
-                                                      ▲
-                                          All 3 back! ✅
+Topic: strict-durability        TopicId: BY03l_uKSHefOB9NoMHotQ PartitionCount: 1       ReplicationFactor: 3    Configs: min.insync.replicas=2,segment.bytes=1073741824
+        Topic: strict-durability        Partition: 0    Leader: 0       Replicas: 0,2,1 Isr: 0,1,2      Elr: N/A        LastKnownElr: N/A
 ```
 
 ### Lab 3 Takeaways
@@ -1017,21 +1022,14 @@ min.insync.replicas=2  ← Sweet spot!
 
 **Goal:** Test the limits - what happens when 2/3 brokers fail?
 
-**Time:** 15 minutes
-
 ### Setup: Ensure All Brokers Running
 
 ```bash
 # Verify all 3 brokers are up
-for i in {0..2}; do
-  if pgreg -f "server-$i.properties" > /dev/null; then
-    echo "✅ Broker $i running"
-  else
-    echo "❌ Broker $i down - starting..."
-    ./scripts/start-broker-$i.sh
-    sleep 5
-  fi
-done
+./scripts/monitor-cluster.sh
+
+Note:
+# ./scripts/monitor-cluster.sh <topic name> by passing topic name at the end we can see topic health and stats
 ```
 
 ### Scenario: Quorum Loss
@@ -1049,41 +1047,33 @@ kafka/bin/kafka-topics.sh --describe \
 pkill -9 -f "server-1.properties"
 pkill -9 -f "server-2.properties"
 
-# Confirm they're dead
-for i in {1..2}; do
-  if pgrep -f "server-$i.properties" > /dev/null; then
-    echo "❌ Broker $i still running"
-  else
-    echo "✅ Broker $i killed"
-  fi
-done
+# Start the health monitor in terminal 
+./scripts/monitor-cluster.sh fault-test
 
 # Wait for ISR update
-echo "Waiting 35 seconds for ISR to stabilize..."
-sleep 35
 ```
 
 ### Check Partition Status
 
 ```bash
 # Use remaining broker (broker 0 on port 9092)
-kafka/bin/kafka-topics.sh --describe \
-  --topic fault-test \
-  --bootstrap-server localhost:9092
+Look at topic health monitor
 ```
 
 **Expected Output:**
 ```
-Partition: 0    Leader: 0    Replicas: 1,2,0    Isr: 0
-Partition: 1    Leader: -1   Replicas: 2,0,1    Isr: 
-Partition: 2    Leader: 0    Replicas: 0,2,1    Isr: 0
-                ▲ No leader!
+Topic: fault-test       TopicId: DTTOJR5AQcqUUpNxVPkauA PartitionCount: 3       ReplicationFactor: 3    Configs: min.insync.replicas=2,segment.bytes=1073741824
+        Topic: fault-test       Partition: 0    Leader: 2       Replicas: 2,0,1 Isr: 2  Elr: N/A        LastKnownElr: N/A
+        Topic: fault-test       Partition: 1    Leader: 2       Replicas: 1,2,0 Isr: 2  Elr: N/A        LastKnownElr: N/A
+        Topic: fault-test       Partition: 2    Leader: 2       Replicas: 0,1,2 Isr: 2  Elr: N/A        LastKnownElr: N/A
 ```
 
 **Analysis:**
-- **Partition 0:** Still has leader (Broker 0), but ISR=1
-- **Partition 1:** OFFLINE (leader was on Broker 2, no ISR replicas available) ❌
-- **Partition 2:** Still has leader (Broker 0), but ISR=1
+- ✅ All partitions have leader (Broker 2)
+- ⚠️ But only 1 replica in ISR!
+- ✅ Cluster is partially operational (can read)
+- ❌ Writes fail with acks=all (ISR=1 < min.insync.replicas=2)
+- ✅ Writes work with acks=1 (leader exists)
 
 ### Try Producing
 
@@ -1112,8 +1102,11 @@ Conclusion: Topic is UNAVAILABLE for writes!
 echo "Test with acks=1" | \
 kafka/bin/kafka-console-producer.sh \
   --topic fault-test \
-  --bootstrap-server localhost:9092 \
+  --bootstrap-server localhost:9092,localhost:9093,localhost:9094 \
   --producer-property acks=1
+
+Output:
+org.apache.kafka.common.errors.NotEnoughReplicasException: Messages are rejected since there are fewer in-sync replicas than required.
 ```
 
 **Result:** ⚠️ **Might work for partitions 0 & 2** (still fails for partition 1)
@@ -1126,13 +1119,12 @@ kafka/bin/kafka-console-producer.sh \
 ./scripts/start-broker-2.sh
 
 # Wait for full recovery
-echo "Waiting 30 seconds for full recovery..."
-sleep 30
 
-# Verify all healthy
-kafka/bin/kafka-topics.sh --describe \
-  --topic fault-test \
-  --bootstrap-server localhost:9092
+# Look at health monitor
+Topic: fault-test       TopicId: DTTOJR5AQcqUUpNxVPkauA PartitionCount: 3       ReplicationFactor: 3    Configs: min.insync.replicas=2,segment.bytes=1073741824
+        Topic: fault-test       Partition: 0    Leader: 2       Replicas: 2,0,1 Isr: 2,0,1      Elr: N/A        LastKnownElr: N/A
+        Topic: fault-test       Partition: 1    Leader: 2       Replicas: 1,2,0 Isr: 2,0,1      Elr: N/A        LastKnownElr: N/A
+        Topic: fault-test       Partition: 2    Leader: 2       Replicas: 0,1,2 Isr: 2,0,1      Elr: N/A        LastKnownElr: N/A
 ```
 
 **Expected:** All partitions back to `Isr: 0,1,2` ✅
