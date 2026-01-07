@@ -19,5 +19,4 @@ __pycache__/
 .DS_Store
 
 */logs/*
-# *.log
-# /Users/nc25593_shivanand/kafka-learning-lab/kafka/logs/server.log
+*/test-results/*

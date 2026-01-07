@@ -2,7 +2,7 @@
 # Smart cluster monitor - General cluster info OR specific topic monitoring
 
 TOPIC=${1:-}  # Empty by default
-LOG_MODE=${MONITOR_LOG_MODE:-true}
+ONE_TIME=${2:-false}
 BROKER_PORTS=(9092 9093 9094)
 
 # Determine mode
@@ -14,9 +14,6 @@ else
   echo "===== Monitoring Topic: $TOPIC ====="
 fi
 
-if [ "$LOG_MODE" = "true" ]; then
-  echo "(LOG MODE - Scrollable)"
-fi
 echo "Running on: $(uname -s) $(uname -m)"
 echo "Press Ctrl+C to stop"
 echo ""
@@ -184,10 +181,6 @@ timeout_command() {
 
 # Main monitoring loop
 while true; do
-  # Clear screen only if not in log mode
-  if [ "$LOG_MODE" != "true" ]; then
-    clear
-  fi
   
   echo "========================================== ** =========================================="
   if [ "$MODE" = "cluster" ]; then
@@ -299,9 +292,8 @@ while true; do
   
   echo ""
   echo "=========================================="
-  if [ "$LOG_MODE" = "true" ]; then
-    echo "Next refresh in 3 seconds... (Ctrl+C to stop)"
-    echo ""
+  if [ "$ONE_TIME" = "true" ]; then
+    exit 0
   else
     echo "Next refresh in 3 seconds... (Ctrl+C to stop)"
   fi
