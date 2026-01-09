@@ -11,7 +11,7 @@ BOOTSTRAP=localhost:9092,localhost:9093,localhost:9094
 # -----------------------------
 # Display cluster status
 # -----------------------------
-~/kafka-learning-lab/scripts/monitor-cluster.sh $TOPIC "true"
+# ~/kafka-learning-lab/scripts/monitor-cluster.sh $TOPIC "true"
 
 # -----------------------------
 # Display configuration
@@ -89,7 +89,7 @@ echo ""
 # -----------------------------
 # Exit code for caller scripts
 # -----------------------------
-exit 0
+# exit 0
 # if [ "$FAILED" -gt 0 ]; then
 #   exit 1
 # else

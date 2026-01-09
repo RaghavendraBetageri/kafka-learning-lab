@@ -174,5 +174,6 @@ fi
 echo "" >&2
 
 # Return count for scripting
+echo "===RETURN_VALUE==="
 echo "$MESSAGE_COUNT"
-exit 0
+# exit 0

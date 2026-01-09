@@ -1141,243 +1141,1150 @@ Topic: fault-test       TopicId: DTTOJR5AQcqUUpNxVPkauA PartitionCount: 3       
 
 ## Lab 5: Producer Behavior During Failures
 
-**Goal:** Test how different `acks` configurations behave during failures.
+**Goal:** Test how different `acks` configurations behave when brokers fail during message production.
 
-**Time:** 20 minutes
+---
 
-### Setup Test Scripts
+### Understanding Producer Acknowledgments
 
+When a producer sends messages to Kafka, it can wait for different levels of confirmation:
+
+| Config | Behavior | Performance | Safety |
+|--------|----------|-------------|--------|
+| `acks=0` | Fire and forget (no confirmation) | ⚡ Fastest | ❌ Unsafe - data loss likely |
+| `acks=1` | Leader confirms only | 🚀 Fast | ⚠️ Risky - can lose unsynced data |
+| `acks=all` | Leader + ISR confirm | 🐢 Slower | ✅ Safe - no data loss |
+
+---
+
+### Test Overview
+
+We'll use three reusable scripts to test producer behavior:
+
+1. **`produce-messages.sh`** - Send messages with configurable acks level
+2. **`consume-and-count.sh`** - Count messages matching a pattern
+3. **`test-acks-during-failure.sh`** - Automated failure test
+
+All scripts are in `~/kafka-learning-lab/test-scripts/` directory.
+
+---
+
+### Script 1: Manual Producer Test
+
+**Purpose:** Send messages manually with any acks level.
+
+**Usage:**
 ```bash
-# Create test scripts directory
-mkdir -p ~/kafka-learning-lab/test-scripts
-
-# Producer with acks=0
-cat > ~/kafka-learning-lab/test-scripts/producer-acks-0.sh << 'EOF'
-#!/bin/bash
-cd ~/kafka-learning-lab
-for i in {1..20}; do
-  echo "acks=0 message $i" | kafka/bin/kafka-console-producer.sh \
-    --topic fault-test \
-    --bootstrap-server localhost:9092 \
-    --producer-property acks=0 2>/dev/null
-  sleep 0.5
-done
-echo "✅ Producer acks=0 finished"
-EOF
-
-# Producer with acks=1
-cat > ~/kafka-learning-lab/test-scripts/producer-acks-1.sh << 'EOF'
-#!/bin/bash
-cd ~/kafka-learning-lab
-for i in {1..20}; do
-  echo "acks=1 message $i" | kafka/bin/kafka-console-producer.sh \
-    --topic fault-test \
-    --bootstrap-server localhost:9092 \
-    --producer-property acks=1 2>/dev/null
-  sleep 0.5
-done
-echo "✅ Producer acks=1 finished"
-EOF
-
-# Producer with acks=all
-cat > ~/kafka-learning-lab/test-scripts/producer-acks-all.sh << 'EOF'
-#!/bin/bash
-cd ~/kafka-learning-lab
-for i in {1..20}; do
-  echo "acks=all message $i" | kafka/bin/kafka-console-producer.sh \
-    --topic fault-test \
-    --bootstrap-server localhost:9092 \
-    --producer-property acks=all 2>/dev/null
-  sleep 0.5
-done
-echo "✅ Producer acks=all finished"
-EOF
-
-chmod +x ~/kafka-learning-lab/test-scripts/producer-acks-*.sh
+./test-scripts/produce-messages.sh <topic> <count> <acks> [bootstrap-server]
 ```
 
-### Test 1: acks=0 During Leader Failure
+**Command:**
+```bash
+./test-scripts/produce-messages.sh fault-test 5 0
+```
+
+**Expected Output:**
+```
+ ~/kafka-learning-lab │ on main wip !3 ?2  ./test-scripts/produce-messages.sh fault-test 5 0                1 х │ took 47s │ at 05:12:16 PM 
+🚀 Starting producer...
+  Topic      : fault-test
+  Count      : 5
+  Acks       : 0
+  Bootstrap  : localhost:9092,localhost:9093,localhost:9094
+
+⚠️ WARN (1/5): Message 1 at 17:20:22
+   └─ Kafka warning:
+      [2026-01-09 17:20:22,985] WARN [Producer clientId=console-producer] Connection to node -1 (localhost/127.0.0.1:9092) could not be established. Node may not be available. (org.apache.kafka.clients.NetworkClient)
+[2026-01-09 17:20:22,985] WARN [Producer clientId=console-producer] Bootstrap broker localhost:9092 (id: -1 rack: null) disconnected (org.apache.kafka.clients.NetworkClient)
+
+✅ SUCCESS (1/5): Message 2 at 17:20:24
+⚠️ WARN (2/5): Message 3 at 17:20:25
+   └─ Kafka warning:
+      [2026-01-09 17:20:26,559] WARN [Producer clientId=console-producer] Connection to node -1 (localhost/127.0.0.1:9092) could not be established. Node may not be available. (org.apache.kafka.clients.NetworkClient)
+
+⚠️ WARN (3/5): Message 4 at 17:20:27
+   └─ Kafka warning:
+      [2026-01-09 17:20:28,307] WARN [Producer clientId=console-producer] Connection to node -1 (localhost/127.0.0.1:9092) could not be established. Node may not be available. (org.apache.kafka.clients.NetworkClient)
+[2026-01-09 17:20:28,307] WARN [Producer clientId=console-producer] Bootstrap broker localhost:9092 (id: -1 rack: null) disconnected (org.apache.kafka.clients.NetworkClient)
+
+✅ SUCCESS (2/5): Message 5 at 17:20:29
+
+===== Producer Summary =====
+✅ SUCCESS   : 2
+⚠️ WARNINGS : 3
+❌ FAILED    : 0
+📊 Success Rate: 40.0%
+
+```
+
+**💡 Tip:** Look at the script to understand the parameters before running it.
+
+---
+
+### Script 2: Manual Consumer Test
+
+**Purpose:** Consume and count messages from a topic.
+
+**Usage:**
+```bash
+./test-scripts/consume-and-count.sh <topic> [IDLE_TIMEOUT] [bootstrap-server]
+```
+
+**Command:**
+```bash
+./test-scripts/consume-and-count.sh fault-test 1  
+```
+
+**Expected Output:**
+```
+===== Monitoring Topic: fault-test =====
+Running on: Darwin arm64
+Press Ctrl+C to stop
+
+========================================== ** ==========================================
+  Topic Monitor: fault-test
+  Time: 17:18:27
+==========================================
+
+📊 Topic Information:
+Topic: fault-test       TopicId: DTTOJR5AQcqUUpNxVPkauA PartitionCount: 3       ReplicationFactor: 3    Configs: min.insync.replicas=3,segment.bytes=1073741824
+        Topic: fault-test       Partition: 0    Leader: 2       Replicas: 2,0,1 Isr: 2,1        Elr: N/A        LastKnownElr: N/A
+        Topic: fault-test       Partition: 1    Leader: 1       Replicas: 1,2,0 Isr: 2,1        Elr: N/A        LastKnownElr: N/A
+        Topic: fault-test       Partition: 2    Leader: 1       Replicas: 0,1,2 Isr: 2,1        Elr: N/A        LastKnownElr: N/A
+
+  📡 Connected via localhost:9093 (Broker 1)
+
+==========================================
+🖥️  Broker Process Status:
+
+  ❌ Broker 0 - Port: 9092 - NOT RUNNING (no process found)
+  ✅ Broker 1 - PID: 9878 - Port: 9093 - RUNNING - ✅ Port responding
+  ✅ Broker 2 - PID: 73333 - Port: 9094 - RUNNING - ✅ Port responding
+
+==========================================
+🐘 ZooKeeper Status:
+
+  ✅ ZooKeeper - PID: 72933 - RUNNING
+  ✅ Port 2181 - Responding
+
+==========================================
+💾 Disk Usage (Kafka Logs):
+
+  🟡  /System/Volumes/Data: 77% used (49Gi free)
+
+==========================================
+📥 Starting consumer with dynamic idle timeout...
+  Topic        : fault-test
+  Idle Timeout : 1s
+  Bootstrap    : localhost:9092,localhost:9093,localhost:9094
+
+⏳ Consuming messages...
+⚠️  WARN: [2026-01-09 17:18:30,554] WARN [Consumer clientId=console-consumer, groupId=console-consumer-56519] Connection to node -1 (localhost/127.0.0.1:9092) could not be established. Node may not be available. (org.apache.kafka.clients.NetworkClient)
+⚠️  WARN: [2026-01-09 17:18:30,555] WARN [Consumer clientId=console-consumer, groupId=console-consumer-56519] Bootstrap broker localhost:9092 (id: -1 rack: null) disconnected (org.apache.kafka.clients.NetworkClient)
+  📊 Messages consumed: 100
+  📊 Messages consumed: 200
+  📊 Messages consumed: 300
+  📊 Messages consumed: 400
+  📊 Messages consumed: 500
+  📊 Messages consumed: 600
+  📊 Messages consumed: 700
+  📊 Messages consumed: 800
+  📊 Messages consumed: 900
+  📊 Messages consumed: 1000
+  📊 Messages consumed: 1100
+
+⏱️  No messages for 1s - stopping consumer
+
+===== Consumer Summary =====
+📊 Total messages : 1186
+💾 Output file    : /Users/nc25593_shivanand/kafka-learning-lab/test-results/kafka-consume-1767959309-80409.out
+
+===RETURN_VALUE===
+1186
+```
+
+**💡 Tip:** The output file is saved in `test-results/` for later inspection.
+
+---
+
+### Script 3: Automated Failure Test
+
+**Purpose:** Automatically test producer behavior when a broker fails mid-test.
+
+**Usage:**
+```bash
+./test-scripts/test-acks-during-failure.sh <acks-level> [topic] [message-count] [broker-to-kill]
+```
+
+**What it does:**
+1. ✅ Checks broker status
+2. 📊 Gets baseline message count
+3. 🚀 Starts producer in background
+4. ⏱️ Waits 5 seconds (sends ~5 messages)
+5. ⚡ Kills specified broker
+6. ⏱️ Waits for producer to finish
+7. 📥 Counts received messages
+8. 📊 Calculates data loss
+
+---
+
+### Test 1: acks=0 Broker 1 is down (Fire and Forget)
+
+**Hypothesis:** Should lose messages because producer doesn't wait for confirmation.
+
+**Steps:**
+```bash
+./test-scripts/test-acks-during-failure.sh 0 fault-test 5 1
+```
+
+<details>
+<summary><strong>Expected Result</strong></summary>
 
 ```bash
-# Start consumer in background to count messages
-kafka/bin/kafka-console-consumer.sh \
-  --topic fault-test \
-  --from-beginning \
-  --bootstrap-server localhost:9092 \
-  --timeout-ms 3000 2>/dev/null | grep "acks=0" > /tmp/acks-0-messages.txt &
+ ~/kafka-learning-lab │ on main wip !3 ?2  ./test-scripts/test-acks-during-failure.sh 0 fault-test 5 1            ✔ │ at 04:32:30 PM 
+==========================================
+  Acks Failure Test - acks=0
+==========================================
+Topic: fault-test
+Message Count: 5
+Broker to Kill: 1
 
-# Start producer
-~/kafka-learning-lab/test-scripts/producer-acks-0.sh &
-PRODUCER_PID=$!
+===== Monitoring Topic: fault-test =====
+Running on: Darwin arm64
+Press Ctrl+C to stop
 
-# Wait 5 seconds, then kill a leader
-sleep 5
-pkill -9 -f "server-1.properties"
-echo "⚡ Killed broker 1 during acks=0 test"
+========================================== ** ==========================================
+  Topic Monitor: fault-test
+  Time: 16:32:33
+==========================================
 
-# Wait for producer to finish
-wait $PRODUCER_PID
+📊 Topic Information:
+Topic: fault-test       TopicId: DTTOJR5AQcqUUpNxVPkauA PartitionCount: 3       ReplicationFactor: 3    Configs: min.insync.replicas=2,segment.bytes=1073741824
+        Topic: fault-test       Partition: 0    Leader: 2       Replicas: 2,0,1 Isr: 0,2,1      Elr: N/A        LastKnownElr: N/A
+        Topic: fault-test       Partition: 1    Leader: 2       Replicas: 1,2,0 Isr: 0,2,1      Elr: N/A        LastKnownElr: N/A
+        Topic: fault-test       Partition: 2    Leader: 0       Replicas: 0,1,2 Isr: 0,2,1      Elr: N/A        LastKnownElr: N/A
 
-# Wait a bit for messages to be consumed
-sleep 3
+  📡 Connected via localhost:9092 (Broker 0)
 
-# Count messages received
-RECEIVED=$(wc -l < /tmp/acks-0-messages.txt)
-echo ""
-echo "===== acks=0 Results ====="
-echo "Messages sent: 20"
-echo "Messages received: $RECEIVED"
-echo "Data loss: $((20 - RECEIVED)) messages"
+==========================================
+🖥️  Broker Process Status:
 
-# Restart broker
+  ✅ Broker 0 - PID: 73877 - Port: 9092 - RUNNING - ✅ Port responding
+  ✅ Broker 1 - PID: 88416 - Port: 9093 - RUNNING - ✅ Port responding
+  ✅ Broker 2 - PID: 73333 - Port: 9094 - RUNNING - ✅ Port responding
+
+==========================================
+🐘 ZooKeeper Status:
+
+  ✅ ZooKeeper - PID: 72933 - RUNNING
+  ✅ Port 2181 - Responding
+
+==========================================
+💾 Disk Usage (Kafka Logs):
+
+  🟡  /System/Volumes/Data: 76% used (49Gi free)
+
+==========================================
+===== Test Configuration =====
+Test Time: Fri Jan  9 16:32:35 IST 2026
+Acks Level: 0
+Topic: fault-test
+Message Count: 5
+Broker to Kill: 1
+
+🔧 Checking broker status...
+  ✅ Broker 0 is running
+  ✅ Broker 1 is running
+  ✅ Broker 2 is running
+
+✅ All 3 brokers are running - ready for test
+
+📊 Getting baseline message count...
+📥 Starting consumer with dynamic idle timeout...
+  Topic        : fault-test
+  Idle Timeout : 3s
+  Bootstrap    : localhost:9092,localhost:9093,localhost:9094
+
+⏳ Consuming messages...
+  📊 Messages consumed: 100
+  📊 Messages consumed: 200
+  📊 Messages consumed: 300
+  📊 Messages consumed: 400
+  📊 Messages consumed: 500
+  📊 Messages consumed: 600
+  📊 Messages consumed: 700
+  📊 Messages consumed: 800
+  📊 Messages consumed: 900
+  📊 Messages consumed: 1000
+  📊 Messages consumed: 1100
+
+⏱️  No messages for 3s - stopping consumer
+
+===== Consumer Summary =====
+📊 Total messages : 1149
+💾 Output file    : /Users/nc25593_shivanand/kafka-learning-lab/test-results/kafka-consume-1767956557-89278.out
+
+BASELINE 1149
+  Current 'acks=0' messages in topic: 1149
+
+🚀 Starting producer (acks=0) in background...
+✅ Producer started (PID: 98255)
+
+⏱️  Waiting 5s to send some messages before failure...
+⚡ Killing broker 1...
+===== Failure Event =====
+Time: 16:32:58
+Action: Killed broker 1
+
+✅ Broker 1 killed at 16:32:58
+
+⏱️  Waiting for producer to complete...
+🚀 Starting producer...
+  Topic      : fault-test
+  Count      : 5
+  Acks       : 0
+  Bootstrap  : localhost:9092,localhost:9093,localhost:9094
+
+✅ SUCCESS (1/5): Message 1 at 16:32:51
+✅ SUCCESS (2/5): Message 2 at 16:32:52
+✅ SUCCESS (3/5): Message 3 at 16:32:54
+✅ SUCCESS (4/5): Message 4 at 16:32:56
+✅ SUCCESS (5/5): Message 5 at 16:32:58
+
+===== Producer Summary =====
+✅ SUCCESS   : 5
+⚠️ WARNINGS : 0
+❌ FAILED    : 0
+📊 Success Rate: 100.0%
+
+
+⏱️  Waiting 5s for message propagation...
+📥 Consuming messages from topic...
+📥 Starting consumer with dynamic idle timeout...
+  Topic        : fault-test
+  Idle Timeout : 3s
+  Bootstrap    : localhost:9092,localhost:9093,localhost:9094
+
+⏳ Consuming messages...
+⚠️  WARN: [2026-01-09 16:33:07,839] WARN [Consumer clientId=console-consumer, groupId=console-consumer-97491] Connection to node -2 (localhost/127.0.0.1:9093) could not be established. Node may not be available. (org.apache.kafka.clients.NetworkClient)
+⚠️  WARN: [2026-01-09 16:33:07,839] WARN [Consumer clientId=console-consumer, groupId=console-consumer-97491] Bootstrap broker localhost:9093 (id: -2 rack: null) disconnected (org.apache.kafka.clients.NetworkClient)
+  📊 Messages consumed: 100
+  📊 Messages consumed: 200
+  📊 Messages consumed: 300
+  📊 Messages consumed: 400
+  📊 Messages consumed: 500
+  📊 Messages consumed: 600
+  📊 Messages consumed: 700
+  📊 Messages consumed: 800
+  📊 Messages consumed: 900
+  📊 Messages consumed: 1000
+  📊 Messages consumed: 1100
+
+⏱️  No messages for 3s - stopping consumer
+
+===== Consumer Summary =====
+📊 Total messages : 1154
+💾 Output file    : /Users/nc25593_shivanand/kafka-learning-lab/test-results/kafka-consume-1767956587-446.out
+
+
+==========================================
+  Test Results - acks=0
+==========================================
+📤 Messages Sent: 5
+📥 Messages Received: 5
+❌ Messages Lost: 0
+📊 Loss Percentage: 0%
+
+✅ NO DATA LOSS
+
+===== Test Results =====
+Baseline Messages: 1149
+Messages Sent: 5
+Final Count: 1154
+Messages Received (this test): 5
+Messages Lost: 0
+Loss Percentage: 0%
+
+✅ NO DATA LOSS
+
+⚠️  Reminder: Manually restart broker 1 if needed
+   Command: ./scripts/start-broker-1.sh
+```
+</details>
+
+
+**💡 Restart broker after test:**
+```bash
 ./scripts/start-broker-1.sh
-sleep 10
 ```
 
-**Expected Result:** **Fewer than 20 messages!** (Data loss occurred) ❌
+---
 
-**Why:** Producer didn't wait for confirmation, sent to dead/dying leader.
+### Test 2: acks=1 (Leader Only) for ReplicationFactor: 3    Configs: min.insync.replicas=2
 
-### Test 2: acks=1 During Leader Failure
+**Hypothesis:** Should lose 0-2 messages if leader dies before replicating.
+
+**Steps:**
+```bash
+./test-scripts/test-acks-during-failure.sh 1 fault-test 5 0
+```
+
+<details>
+<summary><strong>Expected Result</strong></summary>
 
 ```bash
-# Clear previous messages
-> /tmp/acks-1-messages.txt
+ ~/kafka-learning-lab │ on main wip !3 ?2  ./test-scripts/test-acks-during-failure.sh 1 fault-test 5 0        ✔ │ took 58s │ at 04:48:11 PM 
+==========================================
+  Acks Failure Test - acks=1
+==========================================
+Topic: fault-test
+Message Count: 5
+Broker to Kill: 0
 
-# Ensure all brokers running
-for i in {0..2}; do
-  if ! pgrep -f "server-$i.properties" > /dev/null; then
-    ./scripts/start-broker-$i.sh
-    sleep 5
-  fi
-done
+===== Monitoring Topic: fault-test =====
+Running on: Darwin arm64
+Press Ctrl+C to stop
 
-# Start consumer
-kafka/bin/kafka-console-consumer.sh \
-  --topic fault-test \
-  --from-beginning \
-  --bootstrap-server localhost:9092 \
-  --timeout-ms 3000 2>/dev/null | grep "acks=1" > /tmp/acks-1-messages.txt &
+========================================== ** ==========================================
+  Topic Monitor: fault-test
+  Time: 16:49:46
+==========================================
 
-# Start producer
-~/kafka-learning-lab/test-scripts/producer-acks-1.sh &
-PRODUCER_PID=$!
+📊 Topic Information:
+Topic: fault-test       TopicId: DTTOJR5AQcqUUpNxVPkauA PartitionCount: 3       ReplicationFactor: 3    Configs: min.insync.replicas=2,segment.bytes=1073741824
+        Topic: fault-test       Partition: 0    Leader: 2       Replicas: 2,0,1 Isr: 2,1,0      Elr: N/A        LastKnownElr: N/A
+        Topic: fault-test       Partition: 1    Leader: 1       Replicas: 1,2,0 Isr: 2,1,0      Elr: N/A        LastKnownElr: N/A
+        Topic: fault-test       Partition: 2    Leader: 1       Replicas: 0,1,2 Isr: 2,1,0      Elr: N/A        LastKnownElr: N/A
 
-# Wait 5 seconds, kill leader
-sleep 5
-pkill -9 -f "server-1.properties"
-echo "⚡ Killed broker 1 during acks=1 test"
+  📡 Connected via localhost:9092 (Broker 0)
 
-# Wait for producer
-wait $PRODUCER_PID
+==========================================
+🖥️  Broker Process Status:
 
-# Wait for messages
-sleep 3
+  ✅ Broker 0 - PID: 35114 - Port: 9092 - RUNNING - ✅ Port responding
+  ✅ Broker 1 - PID: 9878 - Port: 9093 - RUNNING - ✅ Port responding
+  ✅ Broker 2 - PID: 73333 - Port: 9094 - RUNNING - ✅ Port responding
 
-# Count messages
-RECEIVED=$(wc -l < /tmp/acks-1-messages.txt)
-echo ""
-echo "===== acks=1 Results ====="
-echo "Messages sent: 20"
-echo "Messages received: $RECEIVED"
-echo "Data loss: $((20 - RECEIVED)) messages"
+==========================================
+🐘 ZooKeeper Status:
 
-# Restart broker
-./scripts/start-broker-1.sh
-sleep 10
+  ✅ ZooKeeper - PID: 72933 - RUNNING
+  ✅ Port 2181 - Responding
+
+==========================================
+💾 Disk Usage (Kafka Logs):
+
+  🟡  /System/Volumes/Data: 76% used (49Gi free)
+
+==========================================
+===== Test Configuration =====
+Test Time: Fri Jan  9 16:49:48 IST 2026
+Acks Level: 1
+Topic: fault-test
+Message Count: 5
+Broker to Kill: 0
+
+🔧 Checking broker status...
+  ✅ Broker 0 is running
+  ✅ Broker 1 is running
+  ✅ Broker 2 is running
+
+✅ All 3 brokers are running - ready for test
+
+📊 Getting baseline message count...
+📥 Starting consumer with dynamic idle timeout...
+  Topic        : fault-test
+  Idle Timeout : 3s
+  Bootstrap    : localhost:9092,localhost:9093,localhost:9094
+
+⏳ Consuming messages...
+  📊 Messages consumed: 100
+  📊 Messages consumed: 200
+  📊 Messages consumed: 300
+  📊 Messages consumed: 400
+  📊 Messages consumed: 500
+  📊 Messages consumed: 600
+  📊 Messages consumed: 700
+  📊 Messages consumed: 800
+  📊 Messages consumed: 900
+  📊 Messages consumed: 1000
+  📊 Messages consumed: 1100
+
+⏱️  No messages for 3s - stopping consumer
+
+===== Consumer Summary =====
+📊 Total messages : 1159
+💾 Output file    : /Users/nc25593_shivanand/kafka-learning-lab/test-results/kafka-consume-1767957590-35971.out
+
+BASELINE 1159
+  Current 'acks=1' messages in topic: 1159
+
+🚀 Starting producer (acks=1) in background...
+✅ Producer started (PID: 45025)
+
+⏱️  Waiting 5s to send some messages before failure...
+⚡ Killing broker 0...
+===== Failure Event =====
+Time: 16:50:11
+Action: Killed broker 0
+
+✅ Broker 0 killed at 16:50:11
+
+⏱️  Waiting for producer to complete...
+🚀 Starting producer...
+  Topic      : fault-test
+  Count      : 5
+  Acks       : 1
+  Bootstrap  : localhost:9092,localhost:9093,localhost:9094
+
+✅ SUCCESS (1/5): Message 1 at 16:50:04
+✅ SUCCESS (2/5): Message 2 at 16:50:06
+✅ SUCCESS (3/5): Message 3 at 16:50:07
+✅ SUCCESS (4/5): Message 4 at 16:50:09
+⚠️ WARN (1/5): Message 5 at 16:50:11
+   └─ Kafka warning:
+      [2026-01-09 16:50:12,096] WARN [Producer clientId=console-producer] Connection to node -1 (localhost/127.0.0.1:9092) could not be established. Node may not be available. (org.apache.kafka.clients.NetworkClient)
+[2026-01-09 16:50:12,096] WARN [Producer clientId=console-producer] Bootstrap broker localhost:9092 (id: -1 rack: null) disconnected (org.apache.kafka.clients.NetworkClient)
+
+
+===== Producer Summary =====
+✅ SUCCESS   : 4
+⚠️ WARNINGS : 1
+❌ FAILED    : 0
+📊 Success Rate: 80.0%
+
+
+⏱️  Waiting 5s for message propagation...
+📥 Consuming messages from topic...
+📥 Starting consumer with dynamic idle timeout...
+  Topic        : fault-test
+  Idle Timeout : 3s
+  Bootstrap    : localhost:9092,localhost:9093,localhost:9094
+
+⏳ Consuming messages...
+  📊 Messages consumed: 100
+  📊 Messages consumed: 200
+  📊 Messages consumed: 300
+  📊 Messages consumed: 400
+  📊 Messages consumed: 500
+  📊 Messages consumed: 600
+  📊 Messages consumed: 700
+  📊 Messages consumed: 800
+  📊 Messages consumed: 900
+  📊 Messages consumed: 1000
+  📊 Messages consumed: 1100
+
+⏱️  No messages for 3s - stopping consumer
+
+===== Consumer Summary =====
+📊 Total messages : 1164
+💾 Output file    : /Users/nc25593_shivanand/kafka-learning-lab/test-results/kafka-consume-1767957620-47023.out
+
+
+==========================================
+  Test Results - acks=1
+==========================================
+📤 Messages Sent: 5
+📥 Messages Received: 5
+❌ Messages Lost: 0
+📊 Loss Percentage: 0%
+
+✅ NO DATA LOSS
+
+===== Test Results =====
+Baseline Messages: 1159
+Messages Sent: 5
+Final Count: 1164
+Messages Received (this test): 5
+Messages Lost: 0
+Loss Percentage: 0%
+
+✅ NO DATA LOSS
+
+⚠️  Reminder: Manually restart broker 0 if needed
+   Command: ./scripts/start-broker-0.sh
+```
+</details>
+
+
+**💡 Restart broker:**
+```bash
+./scripts/start-broker-0.sh
 ```
 
-**Expected Result:** **Might lose 1-2 messages** during leader transition. ⚠️
+---
 
-**Why:** Leader ACKed before fully replicating to followers.
+### Test 2: acks=1 (Leader Only) for ReplicationFactor: 3    Configs: min.insync.replicas=3
 
-### Test 3: acks=all During Leader Failure
+
+<details>
+<summary><strong>Expected Result</strong></summary>
 
 ```bash
-# Clear previous messages
-> /tmp/acks-all-messages.txt
 
-# Ensure all brokers running
-for i in {0..2}; do
-  if ! pgrep -f "server-$i.properties" > /dev/null; then
-    ./scripts/start-broker-$i.sh
-    sleep 5
-  fi
-done
+ ~/kafka-learning-lab │ on main wip !3 ?2  ./test-scripts/test-acks-during-failure.sh 1 fault-test 5 0      1 х │ took 49s │ at 05:10:26 PM 
+==========================================
+  Acks Failure Test - acks=1
+==========================================
+Topic: fault-test
+Message Count: 5
+Broker to Kill: 0
 
-# Start consumer
-kafka/bin/kafka-console-consumer.sh \
-  --topic fault-test \
-  --from-beginning \
-  --bootstrap-server localhost:9092 \
-  --timeout-ms 3000 2>/dev/null | grep "acks=all" > /tmp/acks-all-messages.txt &
+===== Monitoring Topic: fault-test =====
+Running on: Darwin arm64
+Press Ctrl+C to stop
 
-# Start producer
-~/kafka-learning-lab/test-scripts/producer-acks-all.sh &
-PRODUCER_PID=$!
+========================================== ** ==========================================
+  Topic Monitor: fault-test
+  Time: 17:11:29
+==========================================
 
-# Wait 5 seconds, kill leader
-sleep 5
-pkill -9 -f "server-1.properties"
-echo "⚡ Killed broker 1 during acks=all test"
+📊 Topic Information:
+Topic: fault-test       TopicId: DTTOJR5AQcqUUpNxVPkauA PartitionCount: 3       ReplicationFactor: 3    Configs: min.insync.replicas=3,segment.bytes=1073741824
+        Topic: fault-test       Partition: 0    Leader: 2       Replicas: 2,0,1 Isr: 2,1,0      Elr: N/A        LastKnownElr: N/A
+        Topic: fault-test       Partition: 1    Leader: 1       Replicas: 1,2,0 Isr: 2,1,0      Elr: N/A        LastKnownElr: N/A
+        Topic: fault-test       Partition: 2    Leader: 1       Replicas: 0,1,2 Isr: 2,1,0      Elr: N/A        LastKnownElr: N/A
 
-# Wait for producer
-wait $PRODUCER_PID
+  📡 Connected via localhost:9092 (Broker 0)
 
-# Wait for messages
-sleep 3
+==========================================
+🖥️  Broker Process Status:
 
-# Count messages
-RECEIVED=$(wc -l < /tmp/acks-all-messages.txt)
-echo ""
-echo "===== acks=all Results ====="
-echo "Messages sent: 20"
-echo "Messages received: $RECEIVED"
-echo "Data loss: $((20 - RECEIVED)) messages"
+  ✅ Broker 0 - PID: 57128 - Port: 9092 - RUNNING - ✅ Port responding
+  ✅ Broker 1 - PID: 9878 - Port: 9093 - RUNNING - ✅ Port responding
+  ✅ Broker 2 - PID: 73333 - Port: 9094 - RUNNING - ✅ Port responding
 
-# Restart broker
-./scripts/start-broker-1.sh
-sleep 10
+==========================================
+🐘 ZooKeeper Status:
+
+  ✅ ZooKeeper - PID: 72933 - RUNNING
+  ✅ Port 2181 - Responding
+
+==========================================
+💾 Disk Usage (Kafka Logs):
+
+  🟡  /System/Volumes/Data: 77% used (49Gi free)
+
+==========================================
+===== Test Configuration =====
+Test Time: Fri Jan  9 17:11:31 IST 2026
+Acks Level: 1
+Topic: fault-test
+Message Count: 5
+Broker to Kill: 0
+
+🔧 Checking broker status...
+  ✅ Broker 0 is running
+  ✅ Broker 1 is running
+  ✅ Broker 2 is running
+
+✅ All 3 brokers are running - ready for test
+
+📊 Getting baseline message count...
+📥 Starting consumer with dynamic idle timeout...
+  Topic        : fault-test
+  Idle Timeout : 3s
+  Bootstrap    : localhost:9092,localhost:9093,localhost:9094
+
+⏳ Consuming messages...
+  📊 Messages consumed: 100
+  📊 Messages consumed: 200
+  📊 Messages consumed: 300
+  📊 Messages consumed: 400
+  📊 Messages consumed: 500
+  📊 Messages consumed: 600
+  📊 Messages consumed: 700
+  📊 Messages consumed: 800
+  📊 Messages consumed: 900
+  📊 Messages consumed: 1000
+  📊 Messages consumed: 1100
+
+⏱️  No messages for 3s - stopping consumer
+
+===== Consumer Summary =====
+📊 Total messages : 1182
+💾 Output file    : /Users/nc25593_shivanand/kafka-learning-lab/test-results/kafka-consume-1767958894-58029.out
+
+BASELINE 1182
+  Current 'acks=1' messages in topic: 1182
+
+🚀 Starting producer (acks=1) in background...
+✅ Producer started (PID: 67225)
+
+⏱️  Waiting 5s to send some messages before failure...
+⚡ Killing broker 0...
+===== Failure Event =====
+Time: 17:11:54
+Action: Killed broker 0
+
+✅ Broker 0 killed at 17:11:54
+
+⏱️  Waiting for producer to complete...
+🚀 Starting producer...
+  Topic      : fault-test
+  Count      : 5
+  Acks       : 1
+  Bootstrap  : localhost:9092,localhost:9093,localhost:9094
+
+✅ SUCCESS (1/5): Message 1 at 17:11:47
+✅ SUCCESS (2/5): Message 2 at 17:11:48
+✅ SUCCESS (3/5): Message 3 at 17:11:50
+✅ SUCCESS (4/5): Message 4 at 17:11:52
+⚠️ WARN (1/5): Message 5 at 17:11:54
+   └─ Kafka warning:
+      [2026-01-09 17:11:54,957] WARN [Producer clientId=console-producer] Connection to node -1 (localhost/127.0.0.1:9092) could not be established. Node may not be available. (org.apache.kafka.clients.NetworkClient)
+[2026-01-09 17:11:54,957] WARN [Producer clientId=console-producer] Bootstrap broker localhost:9092 (id: -1 rack: null) disconnected (org.apache.kafka.clients.NetworkClient)
+
+
+===== Producer Summary =====
+✅ SUCCESS   : 4
+⚠️ WARNINGS : 1
+❌ FAILED    : 0
+📊 Success Rate: 80.0%
+
+
+⏱️  Waiting 5s for message propagation...
+📥 Consuming messages from topic...
+📥 Starting consumer with dynamic idle timeout...
+  Topic        : fault-test
+  Idle Timeout : 3s
+  Bootstrap    : localhost:9092,localhost:9093,localhost:9094
+
+⏳ Consuming messages...
+  📊 Messages consumed: 100
+  📊 Messages consumed: 200
+  📊 Messages consumed: 300
+  📊 Messages consumed: 400
+  📊 Messages consumed: 500
+  📊 Messages consumed: 600
+  📊 Messages consumed: 700
+  📊 Messages consumed: 800
+  📊 Messages consumed: 900
+  📊 Messages consumed: 1000
+  📊 Messages consumed: 1100
+
+⏱️  No messages for 3s - stopping consumer
+
+===== Consumer Summary =====
+📊 Total messages : 1186
+💾 Output file    : /Users/nc25593_shivanand/kafka-learning-lab/test-results/kafka-consume-1767958923-69220.out
+
+
+==========================================
+  Test Results - acks=1
+==========================================
+📤 Messages Sent: 5
+📥 Messages Received: 4
+❌ Messages Lost: 1
+📊 Loss Percentage: 20.0%
+
+❌ DATA LOSS DETECTED
+
+===== Test Results =====
+Baseline Messages: 1182
+Messages Sent: 5
+Final Count: 1186
+Messages Received (this test): 4
+Messages Lost: 1
+Loss Percentage: 20.0%
+
+❌ DATA LOSS DETECTED
+
+⚠️  Reminder: Manually restart broker 0 if needed
+   Command: ./scripts/start-broker-0.sh
+
+```
+</details>
+
+
+**💡 Restart broker:**
+
+---
+
+### Test 3: acks=all (Full ISR) for ReplicationFactor: 3    Configs: min.insync.replicas=2
+
+**Steps:**
+```bash
+./test-scripts/test-acks-during-failure.sh all fault-test 10 2
 ```
 
-**Expected Result:** **All 20 messages!** No data loss. ✅
 
-**Why:** Producer waited for replication to ISR before considering message sent.
-
-### Comparison Table
-
-Create a summary:
+<details>
+<summary><strong>Expected Result</strong></summary>
 
 ```bash
-cat > ~/kafka-learning-lab/acks-comparison.txt << EOF
-===== Producer acks Comparison During Leader Failure =====
+ ~/kafka-learning-lab │ on main wip !3 ?2  ./test-scripts/test-acks-during-failure.sh all fault-test 5 0                 ✔ │ at 04:54:29 PM 
+==========================================
+  Acks Failure Test - acks=all
+==========================================
+Topic: fault-test
+Message Count: 5
+Broker to Kill: 0
 
-Configuration    Sent    Received    Loss    Latency
----------------------------------------------------------
-acks=0           20      ~15         ~25%    ⚡ Fastest
-acks=1           20      ~19         ~5%     🚀 Fast
-acks=all         20      20          0%      🐢 Slower
+===== Monitoring Topic: fault-test =====
+Running on: Darwin arm64
+Press Ctrl+C to stop
 
-Conclusion:
-- acks=0: Fast but UNSAFE (can lose messages)
-- acks=1: Balanced but RISKY (can lose unsynced data)
-- acks=all: SAFEST (no loss with proper min.insync.replicas)
+========================================== ** ==========================================
+  Topic Monitor: fault-test
+  Time: 16:54:34
+==========================================
 
-Production Recommendation: Use acks=all for critical data
-EOF
+📊 Topic Information:
+Topic: fault-test       TopicId: DTTOJR5AQcqUUpNxVPkauA PartitionCount: 3       ReplicationFactor: 3    Configs: min.insync.replicas=2,segment.bytes=1073741824
+        Topic: fault-test       Partition: 0    Leader: 2       Replicas: 2,0,1 Isr: 2,1,0      Elr: N/A        LastKnownElr: N/A
+        Topic: fault-test       Partition: 1    Leader: 1       Replicas: 1,2,0 Isr: 2,1,0      Elr: N/A        LastKnownElr: N/A
+        Topic: fault-test       Partition: 2    Leader: 1       Replicas: 0,1,2 Isr: 2,1,0      Elr: N/A        LastKnownElr: N/A
 
-cat ~/kafka-learning-lab/acks-comparison.txt
+  📡 Connected via localhost:9092 (Broker 0)
+
+==========================================
+🖥️  Broker Process Status:
+
+  ✅ Broker 0 - PID: 66540 - Port: 9092 - RUNNING - ✅ Port responding
+  ✅ Broker 1 - PID: 9878 - Port: 9093 - RUNNING - ✅ Port responding
+  ✅ Broker 2 - PID: 73333 - Port: 9094 - RUNNING - ✅ Port responding
+
+==========================================
+🐘 ZooKeeper Status:
+
+  ✅ ZooKeeper - PID: 72933 - RUNNING
+  ✅ Port 2181 - Responding
+
+==========================================
+💾 Disk Usage (Kafka Logs):
+
+  🟡  /System/Volumes/Data: 76% used (49Gi free)
+
+==========================================
+===== Test Configuration =====
+Test Time: Fri Jan  9 16:54:36 IST 2026
+Acks Level: all
+Topic: fault-test
+Message Count: 5
+Broker to Kill: 0
+
+🔧 Checking broker status...
+  ✅ Broker 0 is running
+  ✅ Broker 1 is running
+  ✅ Broker 2 is running
+
+✅ All 3 brokers are running - ready for test
+
+📊 Getting baseline message count...
+📥 Starting consumer with dynamic idle timeout...
+  Topic        : fault-test
+  Idle Timeout : 3s
+  Bootstrap    : localhost:9092,localhost:9093,localhost:9094
+
+⏳ Consuming messages...
+  📊 Messages consumed: 100
+  📊 Messages consumed: 200
+  📊 Messages consumed: 300
+  📊 Messages consumed: 400
+  📊 Messages consumed: 500
+  📊 Messages consumed: 600
+  📊 Messages consumed: 700
+  📊 Messages consumed: 800
+  📊 Messages consumed: 900
+  📊 Messages consumed: 1000
+  📊 Messages consumed: 1100
+
+⏱️  No messages for 3s - stopping consumer
+
+===== Consumer Summary =====
+📊 Total messages : 1164
+💾 Output file    : /Users/nc25593_shivanand/kafka-learning-lab/test-results/kafka-consume-1767957878-67574.out
+
+BASELINE 1164
+  Current 'acks=all' messages in topic: 1164
+
+🚀 Starting producer (acks=all) in background...
+✅ Producer started (PID: 76841)
+
+⏱️  Waiting 5s to send some messages before failure...
+⚡ Killing broker 0...
+===== Failure Event =====
+Time: 16:54:59
+Action: Killed broker 0
+
+✅ Broker 0 killed at 16:54:59
+
+⏱️  Waiting for producer to complete...
+🚀 Starting producer...
+  Topic      : fault-test
+  Count      : 5
+  Acks       : all
+  Bootstrap  : localhost:9092,localhost:9093,localhost:9094
+
+✅ SUCCESS (1/5): Message 1 at 16:54:52
+✅ SUCCESS (2/5): Message 2 at 16:54:54
+✅ SUCCESS (3/5): Message 3 at 16:54:56
+✅ SUCCESS (4/5): Message 4 at 16:54:57
+⚠️ WARN (1/5): Message 5 at 16:54:59
+   └─ Kafka warning:
+      [2026-01-09 16:55:05,918] WARN [Producer clientId=console-producer] Connection to node 0 (localhost/127.0.0.1:9092) could not be established. Node may not be available. (org.apache.kafka.clients.NetworkClient)
+[2026-01-09 16:55:11,030] WARN [Producer clientId=console-producer] Got error produce response with correlation id 9 on topic-partition fault-test-2, retrying (1 attempts left). Error: REQUEST_TIMED_OUT. Error Message: Disconnected from node 1 due to timeout (org.apache.kafka.clients.producer.internals.Sender)
+[2026-01-09 16:55:16,268] WARN [Producer clientId=console-producer] Got error produce response with correlation id 13 on topic-partition fault-test-2, retrying (0 attempts left). Error: REQUEST_TIMED_OUT. Error Message: Disconnected from node 1 due to timeout (org.apache.kafka.clients.producer.internals.Sender)
+
+
+===== Producer Summary =====
+✅ SUCCESS   : 4
+⚠️ WARNINGS : 1
+❌ FAILED    : 0
+📊 Success Rate: 80.0%
+
+
+⏱️  Waiting 5s for message propagation...
+📥 Consuming messages from topic...
+📥 Starting consumer with dynamic idle timeout...
+  Topic        : fault-test
+  Idle Timeout : 3s
+  Bootstrap    : localhost:9092,localhost:9093,localhost:9094
+
+⏳ Consuming messages...
+⚠️  WARN: [2026-01-09 16:55:26,235] WARN [Consumer clientId=console-consumer, groupId=console-consumer-14641] Connection to node -1 (localhost/127.0.0.1:9092) could not be established. Node may not be available. (org.apache.kafka.clients.NetworkClient)
+⚠️  WARN: [2026-01-09 16:55:26,235] WARN [Consumer clientId=console-consumer, groupId=console-consumer-14641] Bootstrap broker localhost:9092 (id: -1 rack: null) disconnected (org.apache.kafka.clients.NetworkClient)
+  📊 Messages consumed: 100
+  📊 Messages consumed: 200
+  📊 Messages consumed: 300
+  📊 Messages consumed: 400
+  📊 Messages consumed: 500
+  📊 Messages consumed: 600
+  📊 Messages consumed: 700
+  📊 Messages consumed: 800
+  📊 Messages consumed: 900
+  📊 Messages consumed: 1000
+  📊 Messages consumed: 1100
+
+⏱️  No messages for 3s - stopping consumer
+
+===== Consumer Summary =====
+📊 Total messages : 1169
+💾 Output file    : /Users/nc25593_shivanand/kafka-learning-lab/test-results/kafka-consume-1767957925-78933.out
+
+
+==========================================
+  Test Results - acks=all
+==========================================
+📤 Messages Sent: 5
+📥 Messages Received: 5
+❌ Messages Lost: 0
+📊 Loss Percentage: 0%
+
+✅ NO DATA LOSS
+
+===== Test Results =====
+Baseline Messages: 1164
+Messages Sent: 5
+Final Count: 1169
+Messages Received (this test): 5
+Messages Lost: 0
+Loss Percentage: 0%
+
+✅ NO DATA LOSS
+
+⚠️  Reminder: Manually restart broker 0 if needed
+   Command: ./scripts/start-broker-0.sh
+```
+</details>
+
+**💡 Restart broker:**
+```bash
+./scripts/start-broker-0.sh
 ```
 
-### Lab 5 Takeaways
 
-✅ **acks=0:** Fast but unsafe (can lose messages)  
-✅ **acks=1:** Balanced but risk losing unsynced data  
-✅ **acks=all:** Safest (no loss if min.insync.replicas configured)  
-✅ **Production:** Use `acks=all` for critical data  
-✅ **Trade-off:** Safety vs. latency
+### Test 4: acks=all (Full ISR) for ReplicationFactor: 3    Configs: min.insync.replicas=3
 
-***
+
+
+<details>
+<summary><strong>Expected Result</strong></summary>
+
+```bash
+ ~/kafka-learning-lab │ on main wip !3 ?2  ./test-scripts/test-acks-during-failure.sh all fault-test 5 0                 ✔ │ at 05:05:46 PM 
+==========================================
+  Acks Failure Test - acks=all
+==========================================
+Topic: fault-test
+Message Count: 5
+Broker to Kill: 0
+
+===== Monitoring Topic: fault-test =====
+Running on: Darwin arm64
+Press Ctrl+C to stop
+
+========================================== ** ==========================================
+  Topic Monitor: fault-test
+  Time: 17:06:00
+==========================================
+
+📊 Topic Information:
+Topic: fault-test       TopicId: DTTOJR5AQcqUUpNxVPkauA PartitionCount: 3       ReplicationFactor: 3    Configs: min.insync.replicas=3,segment.bytes=1073741824
+        Topic: fault-test       Partition: 0    Leader: 2       Replicas: 2,0,1 Isr: 2,1,0      Elr: N/A        LastKnownElr: N/A
+        Topic: fault-test       Partition: 1    Leader: 1       Replicas: 1,2,0 Isr: 2,1,0      Elr: N/A        LastKnownElr: N/A
+        Topic: fault-test       Partition: 2    Leader: 0       Replicas: 0,1,2 Isr: 2,1,0      Elr: N/A        LastKnownElr: N/A
+
+  📡 Connected via localhost:9092 (Broker 0)
+
+==========================================
+🖥️  Broker Process Status:
+
+  ✅ Broker 0 - PID: 90033 - Port: 9092 - RUNNING - ✅ Port responding
+  ✅ Broker 1 - PID: 9878 - Port: 9093 - RUNNING - ✅ Port responding
+  ✅ Broker 2 - PID: 73333 - Port: 9094 - RUNNING - ✅ Port responding
+
+==========================================
+🐘 ZooKeeper Status:
+
+  ✅ ZooKeeper - PID: 72933 - RUNNING
+  ✅ Port 2181 - Responding
+
+==========================================
+💾 Disk Usage (Kafka Logs):
+
+  🟡  /System/Volumes/Data: 77% used (49Gi free)
+
+==========================================
+===== Test Configuration =====
+Test Time: Fri Jan  9 17:06:02 IST 2026
+Acks Level: all
+Topic: fault-test
+Message Count: 5
+Broker to Kill: 0
+
+🔧 Checking broker status...
+  ✅ Broker 0 is running
+  ✅ Broker 1 is running
+  ✅ Broker 2 is running
+
+✅ All 3 brokers are running - ready for test
+
+📊 Getting baseline message count...
+📥 Starting consumer with dynamic idle timeout...
+  Topic        : fault-test
+  Idle Timeout : 3s
+  Bootstrap    : localhost:9092,localhost:9093,localhost:9094
+
+⏳ Consuming messages...
+  📊 Messages consumed: 100
+  📊 Messages consumed: 200
+  📊 Messages consumed: 300
+  📊 Messages consumed: 400
+  📊 Messages consumed: 500
+  📊 Messages consumed: 600
+  📊 Messages consumed: 700
+  📊 Messages consumed: 800
+  📊 Messages consumed: 900
+  📊 Messages consumed: 1000
+  📊 Messages consumed: 1100
+
+⏱️  No messages for 3s - stopping consumer
+
+===== Consumer Summary =====
+📊 Total messages : 1169
+💾 Output file    : /Users/nc25593_shivanand/kafka-learning-lab/test-results/kafka-consume-1767958565-93263.out
+
+BASELINE 1169
+  Current 'acks=all' messages in topic: 1169
+
+🚀 Starting producer (acks=all) in background...
+✅ Producer started (PID: 2708)
+
+⏱️  Waiting 5s to send some messages before failure...
+⚡ Killing broker 0...
+===== Failure Event =====
+Time: 17:06:26
+Action: Killed broker 0
+
+✅ Broker 0 killed at 17:06:26
+
+⏱️  Waiting for producer to complete...
+🚀 Starting producer...
+  Topic      : fault-test
+  Count      : 5
+  Acks       : all
+  Bootstrap  : localhost:9092,localhost:9093,localhost:9094
+
+✅ SUCCESS (1/5): Message 1 at 17:06:19
+✅ SUCCESS (2/5): Message 2 at 17:06:21
+✅ SUCCESS (3/5): Message 3 at 17:06:23
+✅ SUCCESS (4/5): Message 4 at 17:06:24
+❌ FAILED (1/5): Message 5 at 17:06:26
+   └─ Kafka error:
+      [2026-01-09 17:06:46,382] WARN [Producer clientId=console-producer] Got error produce response with correlation id 31 on topic-partition fault-test-2, retrying (0 attempts left). Error: NOT_ENOUGH_REPLICAS (org.apache.kafka.clients.producer.internals.Sender)
+[2026-01-09 17:06:46,824] ERROR Error when sending message to topic fault-test with key: null, value: 21 bytes with error: (org.apache.kafka.clients.producer.internals.ErrorLoggingCallback)
+org.apache.kafka.common.errors.NotEnoughReplicasException: Messages are rejected since there are fewer in-sync replicas than required.
+
+
+===== Producer Summary =====
+✅ SUCCESS   : 4
+⚠️ WARNINGS : 0
+❌ FAILED    : 1
+📊 Success Rate: 80.0%
+
+
+⏱️  Waiting 5s for message propagation...
+📥 Consuming messages from topic...
+📥 Starting consumer with dynamic idle timeout...
+  Topic        : fault-test
+  Idle Timeout : 3s
+  Bootstrap    : localhost:9092,localhost:9093,localhost:9094
+
+⏳ Consuming messages...
+⚠️  WARN: [2026-01-09 17:06:55,725] WARN [Consumer clientId=console-consumer, groupId=console-consumer-39522] Connection to node -1 (localhost/127.0.0.1:9092) could not be established. Node may not be available. (org.apache.kafka.clients.NetworkClient)
+⚠️  WARN: [2026-01-09 17:06:55,726] WARN [Consumer clientId=console-consumer, groupId=console-consumer-39522] Bootstrap broker localhost:9092 (id: -1 rack: null) disconnected (org.apache.kafka.clients.NetworkClient)
+  📊 Messages consumed: 100
+  📊 Messages consumed: 200
+  📊 Messages consumed: 300
+  📊 Messages consumed: 400
+  📊 Messages consumed: 500
+  📊 Messages consumed: 600
+  📊 Messages consumed: 700
+  📊 Messages consumed: 800
+  📊 Messages consumed: 900
+  📊 Messages consumed: 1000
+  📊 Messages consumed: 1100
+
+⏱️  No messages for 3s - stopping consumer
+
+===== Consumer Summary =====
+📊 Total messages : 1173
+💾 Output file    : /Users/nc25593_shivanand/kafka-learning-lab/test-results/kafka-consume-1767958615-4818.out
+
+
+==========================================
+  Test Results - acks=all
+==========================================
+📤 Messages Sent: 5
+📥 Messages Received: 4
+❌ Messages Lost: 1
+📊 Loss Percentage: 20.0%
+
+❌ DATA LOSS DETECTED
+
+===== Test Results =====
+Baseline Messages: 1169
+Messages Sent: 5
+Final Count: 1173
+Messages Received (this test): 4
+Messages Lost: 1
+Loss Percentage: 20.0%
+
+❌ DATA LOSS DETECTED
+
+⚠️  Reminder: Manually restart broker 0 if needed
+   Command: ./scripts/start-broker-0.sh
+```
+</details>
+
+
+**💡 Restart broker:**
+
+---
+
+
 
 ## Lab 6: Consumer Behavior During Failures
 

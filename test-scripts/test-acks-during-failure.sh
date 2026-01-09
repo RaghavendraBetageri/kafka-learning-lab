@@ -48,7 +48,7 @@ fi
 TIMESTAMP=$(date +%Y%m%d-%H%M%S)
 RESULTS_DIR=~/kafka-learning-lab/test-results
 mkdir -p "$RESULTS_DIR"
-RESULT_FILE="$RESULTS_DIR/acks-${ACKS}-test-${TIMESTAMP}.txt"
+# RESULT_FILE="$RESULTS_DIR/acks-${ACKS}-test-${TIMESTAMP}.txt"
 
 # Display test header
 echo "=========================================="
@@ -57,19 +57,22 @@ echo "=========================================="
 echo "Topic: $TOPIC"
 echo "Message Count: $COUNT"
 echo "Broker to Kill: $BROKER_TO_KILL"
-echo "Results: $RESULT_FILE"
+# echo "Results: $RESULT_FILE"
 echo ""
 
+~/kafka-learning-lab/scripts/monitor-cluster.sh $TOPIC "true"
+
+
 # Log test configuration to file
-{
-  echo "===== Test Configuration ====="
-  echo "Test Time: $(date)"
-  echo "Acks Level: $ACKS"
-  echo "Topic: $TOPIC"
-  echo "Message Count: $COUNT"
-  echo "Broker to Kill: $BROKER_TO_KILL"
-  echo ""
-} > "$RESULT_FILE"
+# {
+echo "===== Test Configuration ====="
+echo "Test Time: $(date)"
+echo "Acks Level: $ACKS"
+echo "Topic: $TOPIC"
+echo "Message Count: $COUNT"
+echo "Broker to Kill: $BROKER_TO_KILL"
+echo ""
+# } > "$RESULT_FILE"
 
 # Step 1: Check broker status
 echo "🔧 Checking broker status..."
@@ -104,10 +107,15 @@ else
 fi
 echo ""
 
+
+
 # Step 2: Get current message count (baseline - before test)
 echo "📊 Getting baseline message count..."
 BASELINE=$(~/kafka-learning-lab/test-scripts/consume-and-count.sh \
-  "$TOPIC" "acks=$ACKS" 5000 2>/dev/null)
+  "$TOPIC" "3")
+BASELINE=$(echo "$BASELINE" | sed -n '/===RETURN_VALUE===/,$ p' | tail -n 1)
+
+echo "BASELINE" $BASELINE
 
 if ! [[ "$BASELINE" =~ ^[0-9]+$ ]]; then
   BASELINE=0
@@ -117,8 +125,8 @@ echo ""
 
 # Step 3: Start producer in background
 echo "🚀 Starting producer (acks=$ACKS) in background..."
-~/kafka-learning-lab/test-scripts/produce-messages.sh \
-  "$TOPIC" "$COUNT" "$ACKS" "acks=$ACKS" > /tmp/producer-$$.log 2>&1 &
+(~/kafka-learning-lab/test-scripts/produce-messages.sh \
+  "$TOPIC" "$COUNT" "$ACKS" "acks=$ACKS" > /tmp/producer-$$.log 2>&1) &
 PRODUCER_PID=$!
 
 # Check if producer started successfully
@@ -142,12 +150,12 @@ pkill -9 -f "server-${BROKER_TO_KILL}.properties"
 KILL_TIME=$(date +%H:%M:%S)
 
 # Log failure event
-{
-  echo "===== Failure Event ====="
-  echo "Time: $KILL_TIME"
-  echo "Action: Killed broker $BROKER_TO_KILL"
-  echo ""
-} >> "$RESULT_FILE"
+# {
+echo "===== Failure Event ====="
+echo "Time: $KILL_TIME"
+echo "Action: Killed broker $BROKER_TO_KILL"
+echo ""
+# } >> "$RESULT_FILE"
 
 echo "✅ Broker $BROKER_TO_KILL killed at $KILL_TIME"
 echo ""
@@ -169,23 +177,36 @@ fi
 echo "⏱️  Waiting 5s for message propagation..."
 sleep 5
 
+
 # Step 8: Get final message count
 echo "📥 Consuming messages from topic..."
-FINAL=$(~/kafka-learning-lab/test-scripts/consume-and-count.sh \
-  "$TOPIC" "acks=$ACKS" 10000 2>/dev/null)
+OUTPUT=$(~/kafka-learning-lab/test-scripts/consume-and-count.sh \
+  "$TOPIC" "3")
+
+# printf "%s\n" "$OUTPUT"
+
+# Extract only the return value
+FINAL=$(echo "$OUTPUT" | sed -n '/===RETURN_VALUE===/,$ p' | tail -n 1)
+
 
 # Validate final count
 if ! [[ "$FINAL" =~ ^[0-9]+$ ]]; then
   echo "❌ Error: Could not count received messages"
   FINAL=0
+  RECEIVED=0
+elif [ "$FINAL" -eq 0 ]; then
+  RECEIVED=0
+else
+  # Calculate messages received in THIS test
+  RECEIVED=$(expr $FINAL - $BASELINE)
+  RECEIVED=${RECEIVED#-}
 fi
-
-# Calculate messages received in THIS test
-RECEIVED=$((FINAL - BASELINE))
 
 # Step 9: Calculate results
 SENT=$COUNT
-LOST=$((SENT - RECEIVED))
+# LOST=$((SENT - RECEIVED))
+LOST=$(expr $SENT - $RECEIVED)
+LOST=${LOST#-}
 
 # Calculate loss percentage (with bc or fallback to integer)
 if command -v bc > /dev/null 2>&1 && [ "$SENT" -gt 0 ]; then
@@ -219,18 +240,18 @@ fi
 echo ""
 
 # Step 11: Save results to file
-{
-  echo "===== Test Results ====="
-  echo "Baseline Messages: $BASELINE"
-  echo "Messages Sent: $SENT"
-  echo "Final Count: $FINAL"
-  echo "Messages Received (this test): $RECEIVED"
-  echo "Messages Lost: $LOST"
-  echo "Loss Percentage: ${LOSS_PERCENT}%"
-  echo ""
-  echo "$RESULT"
-  echo ""
-} >> "$RESULT_FILE"
+# {
+echo "===== Test Results ====="
+echo "Baseline Messages: $BASELINE"
+echo "Messages Sent: $SENT"
+echo "Final Count: $FINAL"
+echo "Messages Received (this test): $RECEIVED"
+echo "Messages Lost: $LOST"
+echo "Loss Percentage: ${LOSS_PERCENT}%"
+echo ""
+echo "$RESULT"
+echo ""
+# } >> "$RESULT_FILE"
 
 # Step 12: Restart broker reminder
 echo "⚠️  Reminder: Manually restart broker $BROKER_TO_KILL if needed"
@@ -238,11 +259,11 @@ echo "   Command: ./scripts/start-broker-${BROKER_TO_KILL}.sh"
 echo ""
 
 # Step 13: Summary
-echo "=========================================="
-echo "📄 Full results saved to:"
-echo "   $RESULT_FILE"
-echo "=========================================="
-echo ""
+# echo "=========================================="
+# echo "📄 Full results saved to:"
+# echo "   $RESULT_FILE"
+# echo "=========================================="
+# echo ""
 
 # Cleanup temp files
 rm -f /tmp/producer-$$.log
