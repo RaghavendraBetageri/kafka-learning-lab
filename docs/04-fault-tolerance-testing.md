@@ -2285,20 +2285,14 @@ Loss Percentage: 20.0%
 ---
 
 
-
 ## Lab 6: Consumer Behavior During Failures
 
 **Goal:** Understand how consumers handle broker failures.
-
-**Time:** 15 minutes
 
 ### Setup Consumer Group
 
 ```bash
 # Create fresh topic for this test
-kafka/bin/kafka-topics.sh --delete --topic consumer-test --bootstrap-server localhost:9092 2>/dev/null
-sleep 3
-
 kafka/bin/kafka-topics.sh --create \
   --topic consumer-test \
   --bootstrap-server localhost:9092 \
@@ -2348,10 +2342,10 @@ kafka/bin/kafka-consumer-groups.sh \
 
 **Sample Output:**
 ```
-TOPIC          PARTITION  CURRENT-OFFSET  LOG-END-OFFSET  LAG  CONSUMER-ID     HOST
-consumer-test  0          0               0               0    consumer-1-...  /127.0.0.1
-consumer-test  1          0               0               0    consumer-2-...  /127.0.0.1
-consumer-test  2          0               0               0    consumer-3-...  /127.0.0.1
+GROUP               TOPIC           PARTITION  CURRENT-OFFSET  LOG-END-OFFSET  LAG             CONSUMER-ID                                           HOST            CLIENT-ID
+test-consumer-group consumer-test   2          0               0               0               console-consumer-533dc8e2-9ba6-486d-a839-d6377025f816 /127.0.0.1      console-consumer
+test-consumer-group consumer-test   0          0               0               0               console-consumer-06902be3-34dd-4cc1-8aed-3e77a4f9ad2e /127.0.0.1      console-consumer
+test-consumer-group consumer-test   1          0               0               0               console-consumer-10f94a84-a386-4345-ab81-8ed87a6da4e7 /127.0.0.1      console-consumer%       
 ```
 
 Each consumer owns 1 partition. ✅
@@ -2361,14 +2355,131 @@ Each consumer owns 1 partition. ✅
 **Terminal 5:**
 ```bash
 # Produce messages
-for i in {1..30}; do
-  echo "Message $i from terminal"
-done | kafka/bin/kafka-console-producer.sh \
-  --topic consumer-test \
-  --bootstrap-server localhost:9092
+./test-scripts/produce-messages.sh consumer-test 30 all
 ```
 
+<details>
+<summary><strong>Output</strong></summary>
+
+```bash
+
+🚀 Starting producer...
+  Topic      : consumer-test
+  Count      : 30
+  Acks       : all
+  Bootstrap  : localhost:9092,localhost:9093,localhost:9094
+
+✅ SUCCESS (1/30): Message 1 at 15:07:46
+✅ SUCCESS (2/30): Message 2 at 15:07:48
+✅ SUCCESS (3/30): Message 3 at 15:07:50
+✅ SUCCESS (4/30): Message 4 at 15:07:52
+✅ SUCCESS (5/30): Message 5 at 15:07:53
+✅ SUCCESS (6/30): Message 6 at 15:07:56
+✅ SUCCESS (7/30): Message 7 at 15:07:57
+✅ SUCCESS (8/30): Message 8 at 15:07:59
+✅ SUCCESS (9/30): Message 9 at 15:08:01
+✅ SUCCESS (10/30): Message 10 at 15:08:03
+✅ SUCCESS (11/30): Message 11 at 15:08:04
+✅ SUCCESS (12/30): Message 12 at 15:08:06
+✅ SUCCESS (13/30): Message 13 at 15:08:08
+✅ SUCCESS (14/30): Message 14 at 15:08:09
+✅ SUCCESS (15/30): Message 15 at 15:08:11
+✅ SUCCESS (16/30): Message 16 at 15:08:13
+✅ SUCCESS (17/30): Message 17 at 15:08:15
+✅ SUCCESS (18/30): Message 18 at 15:08:16
+✅ SUCCESS (19/30): Message 19 at 15:08:18
+✅ SUCCESS (20/30): Message 20 at 15:08:20
+✅ SUCCESS (21/30): Message 21 at 15:08:22
+✅ SUCCESS (22/30): Message 22 at 15:08:23
+✅ SUCCESS (23/30): Message 23 at 15:08:25
+✅ SUCCESS (24/30): Message 24 at 15:08:27
+✅ SUCCESS (25/30): Message 25 at 15:08:29
+✅ SUCCESS (26/30): Message 26 at 15:08:30
+✅ SUCCESS (27/30): Message 27 at 15:08:32
+✅ SUCCESS (28/30): Message 28 at 15:08:34
+✅ SUCCESS (29/30): Message 29 at 15:08:36
+✅ SUCCESS (30/30): Message 30 at 15:08:37
+
+===== Producer Summary =====
+✅ SUCCESS   : 30
+⚠️ WARNINGS : 0
+❌ FAILED    : 0
+📊 Success Rate: 100.0%
+
+```
+</details>
+
 **Watch all 3 consumer terminals** - each should receive ~10 messages.
+
+Outputs:
+<details>
+<summary><strong>Terminal 1</strong></summary>
+
+```bash
+ ~/kafka-learning-lab │ on main wip  kafka/bin/kafka-console-consumer.sh \                                               ✔ │ at 03:02:52 PM 
+  --topic consumer-test \
+  --bootstrap-server localhost:9092 \
+  --group test-consumer-group \
+  --property print.partition=true
+
+Partition:2     Message 1 at 15:07:46
+Partition:2     Message 2 at 15:07:48
+Partition:2     Message 3 at 15:07:50
+Partition:2     Message 8 at 15:07:59
+Partition:2     Message 16 at 15:08:13
+Partition:2     Message 17 at 15:08:15
+Partition:2     Message 28 at 15:08:34
+```
+</details>
+<details>
+<summary><strong>Terminal 2</strong></summary>
+
+```bash
+ ~/kafka-learning-lab │ on main wip !3 ?2  kafka/bin/kafka-console-consumer.sh \
+  --topic consumer-test \
+  --bootstrap-server localhost:9092 \
+  --group test-consumer-group \
+  --property print.partition=true
+
+Partition:1     Message 4 at 15:07:52
+Partition:1     Message 5 at 15:07:53
+Partition:1     Message 7 at 15:07:57
+Partition:1     Message 15 at 15:08:11
+Partition:1     Message 18 at 15:08:16
+Partition:1     Message 20 at 15:08:20
+Partition:1     Message 21 at 15:08:22
+Partition:1     Message 22 at 15:08:23
+Partition:1     Message 23 at 15:08:25
+Partition:1     Message 24 at 15:08:27
+Partition:1     Message 26 at 15:08:30
+```
+</details>
+<details>
+<summary><strong>Terminal 3</strong></summary>
+
+```bash
+ ~/kafka-learning-lab │ on main wip  kafka/bin/kafka-console-consumer.sh \                                               ✔ │ at 03:04:48 PM 
+  --topic consumer-test \
+  --bootstrap-server localhost:9092 \
+  --group test-consumer-group \
+  --property print.partition=true
+
+Partition:0     Message 6 at 15:07:56
+Partition:0     Message 9 at 15:08:01
+Partition:0     Message 10 at 15:08:03
+Partition:0     Message 11 at 15:08:04
+Partition:0     Message 12 at 15:08:06
+Partition:0     Message 13 at 15:08:08
+Partition:0     Message 14 at 15:08:09
+Partition:0     Message 19 at 15:08:18
+Partition:0     Message 25 at 15:08:29
+Partition:0     Message 27 at 15:08:32
+Partition:0     Message 29 at 15:08:36
+Partition:0     Message 30 at 15:08:37
+```
+</details>
+
+
 
 ### Identify Leader of Partition 0
 
@@ -2378,14 +2489,16 @@ kafka/bin/kafka-topics.sh --describe \
   --bootstrap-server localhost:9092 | grep "Partition: 0"
 
 # Example output:
-# Partition: 0  Leader: 1  ...
+Topic: consumer-test    Partition: 0    Leader: 2       Replicas: 2,1,0 Isr: 2,1,0      Elr: N/A        LastKnownElr: N/A
 ```
 
 ### Kill Leader Broker
 
 ```bash
-# Kill the leader (e.g., broker 1)
-pkill -9 -f "server-1.properties"
+# Kill the leader (e.g., broker 2)
+pkill -9 -f "server-2.properties"
+
+# Or Ctrl+C in respective Terminal
 ```
 
 ### Observe Consumer Behavior
@@ -2406,22 +2519,315 @@ kafka/bin/kafka-consumer-groups.sh \
 
 **Expected:** Same assignment, consumers still active.
 
-### Produce More Messages
+### Produce More Messages When Broker 2 is Inactive
 
 ```bash
-# Restart broker first
-./scripts/start-broker-1.sh
-sleep 10
+./test-scripts/produce-messages.sh consumer-test 30 all
+```
+<details>
+<summary><strong>Output</strong></summary>
 
-# Produce more messages
-for i in {31..60}; do
-  echo "Message $i after recovery"
-done | kafka/bin/kafka-console-producer.sh \
+```bash
+ ~/kafka-learning-lab │ on main wip  ./test-scripts/produce-messages.sh consumer-test 30 all                                                                  ✔ │ took 53s │ at 03:08:39 PM 
+🚀 Starting producer...
+  Topic      : consumer-test
+  Count      : 30
+  Acks       : all
+  Bootstrap  : localhost:9092,localhost:9093,localhost:9094
+
+⚠️ WARN (1/30): Message 1 at 15:24:45
+   └─ Kafka warning:
+      [2026-01-10 15:24:46,022] WARN [Producer clientId=console-producer] Connection to node -3 (localhost/127.0.0.1:9094) could not be established. Node may not be available. (org.apache.kafka.clients.NetworkClient)
+[2026-01-10 15:24:46,022] WARN [Producer clientId=console-producer] Bootstrap broker localhost:9094 (id: -3 rack: null) disconnected (org.apache.kafka.clients.NetworkClient)
+
+⚠️ WARN (2/30): Message 2 at 15:24:47
+   └─ Kafka warning:
+      [2026-01-10 15:24:47,881] WARN [Producer clientId=console-producer] Connection to node -3 (localhost/127.0.0.1:9094) could not be established. Node may not be available. (org.apache.kafka.clients.NetworkClient)
+[2026-01-10 15:24:47,881] WARN [Producer clientId=console-producer] Bootstrap broker localhost:9094 (id: -3 rack: null) disconnected (org.apache.kafka.clients.NetworkClient)
+
+⚠️ WARN (3/30): Message 3 at 15:24:49
+   └─ Kafka warning:
+      [2026-01-10 15:24:49,892] WARN [Producer clientId=console-producer] Connection to node -3 (localhost/127.0.0.1:9094) could not be established. Node may not be available. (org.apache.kafka.clients.NetworkClient)
+[2026-01-10 15:24:49,893] WARN [Producer clientId=console-producer] Bootstrap broker localhost:9094 (id: -3 rack: null) disconnected (org.apache.kafka.clients.NetworkClient)
+
+⚠️ WARN (4/30): Message 4 at 15:24:51
+   └─ Kafka warning:
+      [2026-01-10 15:24:51,873] WARN [Producer clientId=console-producer] Connection to node -3 (localhost/127.0.0.1:9094) could not be established. Node may not be available. (org.apache.kafka.clients.NetworkClient)
+[2026-01-10 15:24:51,874] WARN [Producer clientId=console-producer] Bootstrap broker localhost:9094 (id: -3 rack: null) disconnected (org.apache.kafka.clients.NetworkClient)
+
+⚠️ WARN (5/30): Message 5 at 15:24:52
+   └─ Kafka warning:
+      [2026-01-10 15:24:53,752] WARN [Producer clientId=console-producer] Connection to node -3 (localhost/127.0.0.1:9094) could not be established. Node may not be available. (org.apache.kafka.clients.NetworkClient)
+[2026-01-10 15:24:53,753] WARN [Producer clientId=console-producer] Bootstrap broker localhost:9094 (id: -3 rack: null) disconnected (org.apache.kafka.clients.NetworkClient)
+
+✅ SUCCESS (1/30): Message 6 at 15:24:54
+⚠️ WARN (6/30): Message 7 at 15:24:56
+   └─ Kafka warning:
+      [2026-01-10 15:24:57,206] WARN [Producer clientId=console-producer] Connection to node -3 (localhost/127.0.0.1:9094) could not be established. Node may not be available. (org.apache.kafka.clients.NetworkClient)
+[2026-01-10 15:24:57,207] WARN [Producer clientId=console-producer] Bootstrap broker localhost:9094 (id: -3 rack: null) disconnected (org.apache.kafka.clients.NetworkClient)
+
+⚠️ WARN (7/30): Message 8 at 15:24:58
+   └─ Kafka warning:
+      [2026-01-10 15:24:59,200] WARN [Producer clientId=console-producer] Connection to node -3 (localhost/127.0.0.1:9094) could not be established. Node may not be available. (org.apache.kafka.clients.NetworkClient)
+[2026-01-10 15:24:59,200] WARN [Producer clientId=console-producer] Bootstrap broker localhost:9094 (id: -3 rack: null) disconnected (org.apache.kafka.clients.NetworkClient)
+
+⚠️ WARN (8/30): Message 9 at 15:25:00
+   └─ Kafka warning:
+      [2026-01-10 15:25:01,201] WARN [Producer clientId=console-producer] Connection to node -3 (localhost/127.0.0.1:9094) could not be established. Node may not be available. (org.apache.kafka.clients.NetworkClient)
+[2026-01-10 15:25:01,201] WARN [Producer clientId=console-producer] Bootstrap broker localhost:9094 (id: -3 rack: null) disconnected (org.apache.kafka.clients.NetworkClient)
+
+⚠️ WARN (9/30): Message 10 at 15:25:02
+   └─ Kafka warning:
+      [2026-01-10 15:25:02,943] WARN [Producer clientId=console-producer] Connection to node -3 (localhost/127.0.0.1:9094) could not be established. Node may not be available. (org.apache.kafka.clients.NetworkClient)
+[2026-01-10 15:25:02,944] WARN [Producer clientId=console-producer] Bootstrap broker localhost:9094 (id: -3 rack: null) disconnected (org.apache.kafka.clients.NetworkClient)
+
+⚠️ WARN (10/30): Message 11 at 15:25:04
+   └─ Kafka warning:
+      [2026-01-10 15:25:04,918] WARN [Producer clientId=console-producer] Connection to node -3 (localhost/127.0.0.1:9094) could not be established. Node may not be available. (org.apache.kafka.clients.NetworkClient)
+[2026-01-10 15:25:04,918] WARN [Producer clientId=console-producer] Bootstrap broker localhost:9094 (id: -3 rack: null) disconnected (org.apache.kafka.clients.NetworkClient)
+
+⚠️ WARN (11/30): Message 12 at 15:25:06
+   └─ Kafka warning:
+      [2026-01-10 15:25:06,894] WARN [Producer clientId=console-producer] Connection to node -3 (localhost/127.0.0.1:9094) could not be established. Node may not be available. (org.apache.kafka.clients.NetworkClient)
+[2026-01-10 15:25:06,894] WARN [Producer clientId=console-producer] Bootstrap broker localhost:9094 (id: -3 rack: null) disconnected (org.apache.kafka.clients.NetworkClient)
+
+⚠️ WARN (12/30): Message 13 at 15:25:07
+   └─ Kafka warning:
+      [2026-01-10 15:25:08,732] WARN [Producer clientId=console-producer] Connection to node -3 (localhost/127.0.0.1:9094) could not be established. Node may not be available. (org.apache.kafka.clients.NetworkClient)
+[2026-01-10 15:25:08,732] WARN [Producer clientId=console-producer] Bootstrap broker localhost:9094 (id: -3 rack: null) disconnected (org.apache.kafka.clients.NetworkClient)
+
+✅ SUCCESS (2/30): Message 14 at 15:25:09
+⚠️ WARN (13/30): Message 15 at 15:25:11
+   └─ Kafka warning:
+      [2026-01-10 15:25:12,213] WARN [Producer clientId=console-producer] Connection to node -3 (localhost/127.0.0.1:9094) could not be established. Node may not be available. (org.apache.kafka.clients.NetworkClient)
+[2026-01-10 15:25:12,213] WARN [Producer clientId=console-producer] Bootstrap broker localhost:9094 (id: -3 rack: null) disconnected (org.apache.kafka.clients.NetworkClient)
+
+✅ SUCCESS (3/30): Message 16 at 15:25:13
+⚠️ WARN (14/30): Message 17 at 15:25:15
+   └─ Kafka warning:
+      [2026-01-10 15:25:15,983] WARN [Producer clientId=console-producer] Connection to node -3 (localhost/127.0.0.1:9094) could not be established. Node may not be available. (org.apache.kafka.clients.NetworkClient)
+[2026-01-10 15:25:15,983] WARN [Producer clientId=console-producer] Bootstrap broker localhost:9094 (id: -3 rack: null) disconnected (org.apache.kafka.clients.NetworkClient)
+
+✅ SUCCESS (4/30): Message 18 at 15:25:17
+✅ SUCCESS (5/30): Message 19 at 15:25:18
+⚠️ WARN (15/30): Message 20 at 15:25:20
+   └─ Kafka warning:
+      [2026-01-10 15:25:21,479] WARN [Producer clientId=console-producer] Connection to node -3 (localhost/127.0.0.1:9094) could not be established. Node may not be available. (org.apache.kafka.clients.NetworkClient)
+[2026-01-10 15:25:21,479] WARN [Producer clientId=console-producer] Bootstrap broker localhost:9094 (id: -3 rack: null) disconnected (org.apache.kafka.clients.NetworkClient)
+
+⚠️ WARN (16/30): Message 21 at 15:25:22
+   └─ Kafka warning:
+      [2026-01-10 15:25:23,220] WARN [Producer clientId=console-producer] Connection to node -3 (localhost/127.0.0.1:9094) could not be established. Node may not be available. (org.apache.kafka.clients.NetworkClient)
+[2026-01-10 15:25:23,220] WARN [Producer clientId=console-producer] Bootstrap broker localhost:9094 (id: -3 rack: null) disconnected (org.apache.kafka.clients.NetworkClient)
+
+⚠️ WARN (17/30): Message 22 at 15:25:24
+   └─ Kafka warning:
+      [2026-01-10 15:25:24,941] WARN [Producer clientId=console-producer] Connection to node -3 (localhost/127.0.0.1:9094) could not be established. Node may not be available. (org.apache.kafka.clients.NetworkClient)
+[2026-01-10 15:25:24,941] WARN [Producer clientId=console-producer] Bootstrap broker localhost:9094 (id: -3 rack: null) disconnected (org.apache.kafka.clients.NetworkClient)
+
+⚠️ WARN (18/30): Message 23 at 15:25:25
+   └─ Kafka warning:
+      [2026-01-10 15:25:26,757] WARN [Producer clientId=console-producer] Connection to node -3 (localhost/127.0.0.1:9094) could not be established. Node may not be available. (org.apache.kafka.clients.NetworkClient)
+[2026-01-10 15:25:26,757] WARN [Producer clientId=console-producer] Bootstrap broker localhost:9094 (id: -3 rack: null) disconnected (org.apache.kafka.clients.NetworkClient)
+
+⚠️ WARN (19/30): Message 24 at 15:25:27
+   └─ Kafka warning:
+      [2026-01-10 15:25:28,732] WARN [Producer clientId=console-producer] Connection to node -3 (localhost/127.0.0.1:9094) could not be established. Node may not be available. (org.apache.kafka.clients.NetworkClient)
+[2026-01-10 15:25:28,732] WARN [Producer clientId=console-producer] Bootstrap broker localhost:9094 (id: -3 rack: null) disconnected (org.apache.kafka.clients.NetworkClient)
+
+⚠️ WARN (20/30): Message 25 at 15:25:29
+   └─ Kafka warning:
+      [2026-01-10 15:25:30,711] WARN [Producer clientId=console-producer] Connection to node -3 (localhost/127.0.0.1:9094) could not be established. Node may not be available. (org.apache.kafka.clients.NetworkClient)
+[2026-01-10 15:25:30,711] WARN [Producer clientId=console-producer] Bootstrap broker localhost:9094 (id: -3 rack: null) disconnected (org.apache.kafka.clients.NetworkClient)
+
+⚠️ WARN (21/30): Message 26 at 15:25:31
+   └─ Kafka warning:
+      [2026-01-10 15:25:32,583] WARN [Producer clientId=console-producer] Connection to node -3 (localhost/127.0.0.1:9094) could not be established. Node may not be available. (org.apache.kafka.clients.NetworkClient)
+[2026-01-10 15:25:32,583] WARN [Producer clientId=console-producer] Bootstrap broker localhost:9094 (id: -3 rack: null) disconnected (org.apache.kafka.clients.NetworkClient)
+
+⚠️ WARN (22/30): Message 27 at 15:25:33
+   └─ Kafka warning:
+      [2026-01-10 15:25:34,301] WARN [Producer clientId=console-producer] Connection to node -3 (localhost/127.0.0.1:9094) could not be established. Node may not be available. (org.apache.kafka.clients.NetworkClient)
+[2026-01-10 15:25:34,301] WARN [Producer clientId=console-producer] Bootstrap broker localhost:9094 (id: -3 rack: null) disconnected (org.apache.kafka.clients.NetworkClient)
+
+⚠️ WARN (23/30): Message 28 at 15:25:35
+   └─ Kafka warning:
+      [2026-01-10 15:25:36,155] WARN [Producer clientId=console-producer] Connection to node -3 (localhost/127.0.0.1:9094) could not be established. Node may not be available. (org.apache.kafka.clients.NetworkClient)
+[2026-01-10 15:25:36,155] WARN [Producer clientId=console-producer] Bootstrap broker localhost:9094 (id: -3 rack: null) disconnected (org.apache.kafka.clients.NetworkClient)
+
+⚠️ WARN (24/30): Message 29 at 15:25:37
+   └─ Kafka warning:
+      [2026-01-10 15:25:38,161] WARN [Producer clientId=console-producer] Connection to node -3 (localhost/127.0.0.1:9094) could not be established. Node may not be available. (org.apache.kafka.clients.NetworkClient)
+[2026-01-10 15:25:38,161] WARN [Producer clientId=console-producer] Bootstrap broker localhost:9094 (id: -3 rack: null) disconnected (org.apache.kafka.clients.NetworkClient)
+
+⚠️ WARN (25/30): Message 30 at 15:25:39
+   └─ Kafka warning:
+      [2026-01-10 15:25:40,178] WARN [Producer clientId=console-producer] Connection to node -3 (localhost/127.0.0.1:9094) could not be established. Node may not be available. (org.apache.kafka.clients.NetworkClient)
+[2026-01-10 15:25:40,179] WARN [Producer clientId=console-producer] Bootstrap broker localhost:9094 (id: -3 rack: null) disconnected (org.apache.kafka.clients.NetworkClient)
+
+
+===== Producer Summary =====
+✅ SUCCESS   : 5
+⚠️ WARNINGS : 25
+❌ FAILED    : 0
+📊 Success Rate: 16.6%
+```
+</details>
+
+**All consumers continue receiving messages.** ✅
+
+Outputs:
+<details>
+<summary><strong>Terminal 1</strong></summary>
+
+```bash
+ ~/kafka-learning-lab │ on main wip  kafka/bin/kafka-console-consumer.sh \                                               ✔ │ at 03:02:52 PM 
   --topic consumer-test \
-  --bootstrap-server localhost:9092
+  --bootstrap-server localhost:9092 \
+  --group test-consumer-group \
+  --property print.partition=true
+
+Partition:2     Message 1 at 15:24:45
+Partition:2     Message 5 at 15:24:52
+Partition:2     Message 6 at 15:24:54
+Partition:2     Message 7 at 15:24:56
+Partition:2     Message 13 at 15:25:07
+Partition:2     Message 15 at 15:25:11
+```
+</details>
+<details>
+<summary><strong>Terminal 2</strong></summary>
+
+```bash
+ ~/kafka-learning-lab │ on main wip !3 ?2  kafka/bin/kafka-console-consumer.sh \
+  --topic consumer-test \
+  --bootstrap-server localhost:9092 \
+  --group test-consumer-group \
+  --property print.partition=true
+
+Partition:1     Message 9 at 15:25:00
+Partition:1     Message 10 at 15:25:02
+Partition:1     Message 11 at 15:25:04
+Partition:1     Message 12 at 15:25:06
+Partition:1     Message 14 at 15:25:09
+Partition:1     Message 17 at 15:25:15
+Partition:1     Message 18 at 15:25:17
+Partition:1     Message 25 at 15:25:29
+Partition:1     Message 29 at 15:25:37
+Partition:1     Message 30 at 15:25:39
+```
+</details>
+<details>
+<summary><strong>Terminal 3</strong></summary>
+
+```bash
+ ~/kafka-learning-lab │ on main wip  kafka/bin/kafka-console-consumer.sh \                                               ✔ │ at 03:04:48 PM 
+  --topic consumer-test \
+  --bootstrap-server localhost:9092 \
+  --group test-consumer-group \
+  --property print.partition=true
+
+Partition:0     Message 2 at 15:24:47
+Partition:0     Message 3 at 15:24:49
+[2026-01-10 15:24:50,476] WARN [Consumer clientId=console-consumer, groupId=test-consumer-group] Connection to node 2 (localhost/127.0.0.1:9094) could not be established. Node may not be available. (org.apache.kafka.clients.NetworkClient)
+Partition:0     Message 4 at 15:24:51
+Partition:0     Message 8 at 15:24:58
+Partition:0     Message 16 at 15:25:13
+Partition:0     Message 19 at 15:25:18
+Partition:0     Message 20 at 15:25:20
+Partition:0     Message 21 at 15:25:22
+Partition:0     Message 22 at 15:25:24
+Partition:0     Message 23 at 15:25:25
+Partition:0     Message 24 at 15:25:27
+Partition:0     Message 26 at 15:25:31
+Partition:0     Message 27 at 15:25:33
+Partition:0     Message 28 at 15:25:35
+```
+</details>
+
+### Now See the Leader of Partition 0
+
+```bash
+kafka/bin/kafka-topics.sh --describe \
+  --topic consumer-test \
+  --bootstrap-server localhost:9092 | grep "Partition: 0"
+
+# Example output:
+Topic: consumer-test    Partition: 0    Leader: 1       Replicas: 2,1,0 Isr: 1,0        Elr: N/A        LastKnownElr: N/A
+```
+
+
+### Produce More Messages After starting the Broker 2
+
+```bash
+./scripts/start-broker-2.sh # Run this is specific terminal
+./test-scripts/produce-messages.sh consumer-test 30 all
 ```
 
 **All consumers continue receiving messages.** ✅
+
+Outputs:
+<details>
+<summary><strong>Terminal 1</strong></summary>
+
+```bash
+Partition:2     Message 1 at 15:35:32
+Partition:2     Message 2 at 15:35:33
+Partition:2     Message 4 at 15:35:37
+Partition:2     Message 6 at 15:35:40
+Partition:2     Message 8 at 15:35:44
+Partition:2     Message 15 at 15:35:56
+Partition:2     Message 20 at 15:36:05
+Partition:2     Message 21 at 15:36:06
+Partition:2     Message 22 at 15:36:08
+Partition:2     Message 25 at 15:36:13
+Partition:2     Message 27 at 15:36:17
+```
+</details>
+<details>
+<summary><strong>Terminal 2</strong></summary>
+
+```bash
+Partition:1     Message 7 at 15:35:42
+Partition:1     Message 9 at 15:35:46
+Partition:1     Message 11 at 15:35:49
+Partition:1     Message 12 at 15:35:51
+Partition:1     Message 13 at 15:35:53
+Partition:1     Message 26 at 15:36:15
+Partition:1     Message 28 at 15:36:19
+Partition:1     Message 29 at 15:36:21
+Partition:1     Message 30 at 15:36:22
+```
+</details>
+<details>
+<summary><strong>Terminal 3</strong></summary>
+
+```bash
+Partition:0     Message 3 at 15:35:35
+Partition:0     Message 5 at 15:35:39
+Partition:0     Message 10 at 15:35:47
+Partition:0     Message 14 at 15:35:54
+Partition:0     Message 16 at 15:35:58
+Partition:0     Message 17 at 15:36:00
+Partition:0     Message 18 at 15:36:01
+Partition:0     Message 19 at 15:36:03
+Partition:0     Message 23 at 15:36:10
+Partition:0     Message 24 at 15:36:12
+```
+</details>
+
+### Now See the Leader of Partition 0
+
+```bash
+kafka/bin/kafka-topics.sh --describe \
+  --topic consumer-test \
+  --bootstrap-server localhost:9092 | grep "Partition: 0"
+
+# Example output:
+Topic: consumer-test    Partition: 0    Leader: 2       Replicas: 2,1,0 Isr: 1,0,2      Elr: N/A        LastKnownElr: N/A
+```
+
+
 
 ### Stop Consumers
 
@@ -2437,422 +2843,10 @@ done | kafka/bin/kafka-console-producer.sh \
 ✅ **Offset commits preserved** (no reprocessing)  
 ✅ **Consumer groups are resilient** to broker failures
 
-***
-
-## Lab 7: Network Partition Simulation
-
-**Goal:** Simulate network split (broker isolated but alive).
-
-**Time:** 15 minutes
-
-### Using Process Pause (Simpler on macOS)
-
-On macOS, firewall rules (`iptables`) don't exist. We'll use process pausing to simulate network isolation.
-
-**Step 1: Verify Baseline**
-
-```bash
-kafka/bin/kafka-topics.sh --describe \
-  --topic fault-test \
-  --bootstrap-server localhost:9092
-```
-
-**All ISR should show 3 replicas:** `Isr: 0,1,2`
-
-**Step 2: "Isolate" Broker 2**
-
-```bash
-# Pause broker 2 (simulates network partition)
-pkill -STOP -f "server-2.properties"
-
-echo "Broker 2 paused (simulating network partition)"
-echo "Waiting 35 seconds for cluster to react..."
-sleep 35
-```
-
-**What this simulates:**
-- Broker 2 is alive (process exists)
-- But cannot communicate (frozen)
-- Similar to network partition
-
-**Step 3: Observe Cluster Behavior**
-
-```bash
-kafka/bin/kafka-topics.sh --describe \
-  --topic fault-test \
-  --bootstrap-server localhost:9092
-```
-
-**Expected:**
-```
-Partition: 0    Leader: 1    Replicas: 1,2,0    Isr: 1,0     ← Broker 2 removed
-Partition: 1    Leader: 0    Replicas: 2,0,1    Isr: 0,1     ← Broker 2 removed  
-Partition: 2    Leader: 1    Replicas: 0,1,2    Isr: 0,1     ← Broker 2 removed
-```
-
-**For partitions where Broker 2 was leader:**
-- New leader elected automatically
-- Broker 2 removed from all ISRs
-- No "split-brain" (Kafka prevents dual leaders) ✅
-
-**Step 4: Produce Messages (Should Work)**
-
-```bash
-echo "Test during network partition" | \
-kafka/bin/kafka-console-producer.sh \
-  --topic fault-test \
-  --bootstrap-server localhost:9092 \
-  --producer-property acks=all
-```
-
-**Expected:** ✅ **Works!** (ISR still has 2 replicas, meets min.insync.replicas=2)
-
-**Step 5: Restore "Network"**
-
-```bash
-# Resume broker 2
-pkill -CONT -f "server-2.properties"
-
-echo "Broker 2 resumed"
-echo "Waiting 15 seconds for rejoin..."
-sleep 15
-```
-
-**Step 6: Verify Recovery**
-
-```bash
-kafka/bin/kafka-topics.sh --describe \
-  --topic fault-test \
-  --bootstrap-server localhost:9092
-```
-
-**Expected:**
-```
-Partition: 0    Leader: 1    Replicas: 1,2,0    Isr: 1,0,2   ← Broker 2 back!
-Partition: 1    Leader: 0    Replicas: 2,0,1    Isr: 0,1,2   ← Broker 2 back!
-Partition: 2    Leader: 1    Replicas: 0,1,2    Isr: 0,1,2   ← Broker 2 back!
-```
-
-All partitions back to full ISR! ✅
-
-### Lab 7 Takeaways
-
-✅ **Kafka handles network partitions gracefully**  
-✅ **Prevents split-brain** (only one leader per partition)  
-✅ **Isolated broker removed from ISR** automatically  
-✅ **Automatic rejoin when connectivity restored**  
-✅ **`pkill -STOP` is excellent for testing** on macOS
 
 ***
 
-## Lab 8: Data Durability Testing
 
-**Goal:** Prove that Kafka doesn't lose data with correct configuration.
-
-**Time:** 15 minutes
-
-### Setup Durable Topic
-
-```bash
-# Create durable topic
-kafka/bin/kafka-topics.sh --create \
-  --topic durability-test \
-  --bootstrap-server localhost:9092 \
-  --partitions 1 \
-  --replication-factor 3 \
-  --config min.insync.replicas=2 \
-  --config unclean.leader.election.enable=false
-```
-
-**Configuration:**
-- `min.insync.replicas=2`: Need 2 ACKs
-- `unclean.leader.election.enable=false`: Never elect out-of-sync replica as leader
-
-### Produce Test Data with Sequence Numbers
-
-```bash
-# Produce 100 messages with sequence numbers
-for i in {1..100}; do
-  echo "Message-$i-Timestamp-$(date +%s)"
-done | kafka/bin/kafka-console-producer.sh \
-  --topic durability-test \
-  --bootstrap-server localhost:9092 \
-  --producer-property acks=all
-```
-
-### Chaos Testing Script
-
-```bash
-cat > ~/kafka-learning-lab/test-scripts/chaos-test.sh << 'EOF'
-#!/bin/bash
-echo "===== Starting Chaos Test ====="
-echo "Will randomly kill and restart brokers for 2 minutes"
-echo ""
-
-END_TIME=$(($(date +%s) + 120))  # Run for 2 minutes
-
-while [ $(date +%s) -lt $END_TIME ]; do
-  # Random broker (0, 1, or 2) - macOS uses jot instead of shuf
-  BROKER=$(jot -r 1 0 2)
-  
-  echo "[$(date +%H:%M:%S)] ⚡ Killing broker $BROKER"
-  pkill -9 -f "server-$BROKER.properties"
-  
-  sleep 10
-  
-  echo "[$(date +%H:%M:%S)] ✅ Restarting broker $BROKER"
-  ~/kafka-learning-lab/scripts/start-broker-$BROKER.sh
-  
-  sleep 20
-done
-
-echo ""
-echo "===== Chaos Test Complete ====="
-EOF
-
-chmod +x ~/kafka-learning-lab/test-scripts/chaos-test.sh
-```
-
-### Run Chaos Test with Continuous Production
-
-**Terminal 1: Chaos Test**
-```bash
-~/kafka-learning-lab/test-scripts/chaos-test.sh
-```
-
-**Terminal 2: Continuous Producer (simultaneously)**
-```bash
-for i in {101..200}; do
-  echo "Message-$i-Timestamp-$(date +%s)" | \
-  kafka/bin/kafka-console-producer.sh \
-    --topic durability-test \
-    --bootstrap-server localhost:9092 \
-    --producer-property acks=all 2>/dev/null
-  sleep 0.5
-done
-
-echo "✅ Producer finished"
-```
-
-**Let both run for 2 minutes.**
-
-### Verify Data Integrity
-
-```bash
-# Wait for chaos test to complete
-sleep 10
-
-# Ensure all brokers are up
-for i in {0..2}; do
-  if ! pgrep -f "server-$i.properties" > /dev/null; then
-    ./scripts/start-broker-$i.sh
-    sleep 5
-  fi
-done
-
-# Consume all messages
-kafka/bin/kafka-console-consumer.sh \
-  --topic durability-test \
-  --from-beginning \
-  --bootstrap-server localhost:9092 \
-  --timeout-ms 10000 2>/dev/null > /tmp/consumed-messages.txt
-
-# Count total messages
-TOTAL=$(wc -l < /tmp/consumed-messages.txt)
-echo ""
-echo "===== Data Integrity Check ====="
-echo "Total messages received: $TOTAL"
-echo "Expected: 200 (100 initial + 100 during chaos)"
-
-# Check for duplicates
-UNIQUE=$(sort /tmp/consumed-messages.txt | uniq | wc -l)
-echo "Unique messages: $UNIQUE"
-
-if [ "$TOTAL" -eq "$UNIQUE" ]; then
-  echo "✅ No duplicates found"
-else
-  echo "⚠️  Found $((TOTAL - UNIQUE)) duplicate(s)"
-fi
-
-# Check sequence completeness
-grep -oP 'Message-\K\d+' /tmp/consumed-messages.txt | sort -n > /tmp/sequences.txt
-EXPECTED_SEQ=$(seq 1 200)
-MISSING=$(comm -13 <(sort /tmp/sequences.txt) <(echo "$EXPECTED_SEQ") | wc -l)
-
-if [ "$MISSING" -eq 0 ]; then
-  echo "✅ All sequence numbers present (1-200)"
-else
-  echo "❌ Missing $MISSING sequence number(s)"
-  echo "Missing sequences:"
-  comm -13 <(sort /tmp/sequences.txt) <(echo "$EXPECTED_SEQ")
-fi
-```
-
-**Expected Results:**
-- **Total messages:** 200 ✅
-- **No duplicates** ✅
-- **No missing sequences** ✅
-
-### Lab 8 Takeaways
-
-✅ **With `acks=all` + `min.insync.replicas=2`:** Zero data loss  
-✅ **Chaos testing validates configuration** in practice  
-✅ **Kafka guarantees durability** when configured correctly  
-✅ **Even with random broker failures:** Messages are safe  
-✅ **No duplicates, no gaps** in properly configured setup
-
-***
-
-## Lab 9: Recovery Time Measurement
-
-**Goal:** Measure how fast Kafka recovers from failures.
-
-**Time:** 20 minutes (bonus lab)
-
-### Create Measurement Script
-
-```bash
-cat > ~/kafka-learning-lab/scripts/measure-recovery.sh << 'EOF'
-#!/bin/bash
-
-TOPIC=${1:-fault-test}
-BOOTSTRAP=${2:-localhost:9092}
-
-echo "===== Recovery Time Measurement (macOS) ====="
-echo "Topic: $TOPIC"
-echo ""
-
-# Start timestamp (macOS uses seconds by default)
-START=$(date +%s)
-
-# Kill random broker (macOS uses jot instead of shuf)
-BROKER=$(jot -r 1 0 2)
-echo "[T+0.0s] ⚡ Killing broker $BROKER"
-pkill -9 -f "server-$BROKER.properties"
-
-# Wait for leader election
-echo "Waiting for leader election..."
-ELECTION_DONE=0
-while [ $ELECTION_DONE -eq 0 ]; do
-  LEADERS=$(~/kafka-learning-lab/kafka/bin/kafka-topics.sh --describe \
-    --topic $TOPIC \
-    --bootstrap-server $BOOTSTRAP 2>/dev/null | grep -c "Leader: [0-9]")
-  
-  if [ "$LEADERS" -ge 2 ]; then  # At least 2 partitions have leaders
-    END=$(date +%s)
-    ELAPSED=$((END - START))
-    echo "[T+${ELAPSED}.0s] ✅ Leader election completed"
-    ELECTION_DONE=1
-  fi
-  sleep 0.5
-done
-
-# Measure time to first successful write
-echo "Testing producer availability..."
-WRITE_START=$(date +%s)
-
-echo "test message" | ~/kafka-learning-lab/kafka/bin/kafka-console-producer.sh \
-  --topic $TOPIC \
-  --bootstrap-server $BOOTSTRAP \
-  --producer-property acks=all 2>/dev/null
-
-WRITE_END=$(date +%s)
-WRITE_TIME=$((WRITE_END - WRITE_START))
-
-echo "[T+${WRITE_TIME}.0s] ✅ First write succeeded"
-
-echo ""
-echo "===== Results ====="
-echo "Leader Election Time: ${ELAPSED}s"
-echo "Total Recovery Time:  ${WRITE_TIME}s"
-echo ""
-
-# Restart the killed broker for next test
-echo "Restarting broker $BROKER for next test..."
-~/kafka-learning-lab/scripts/start-broker-$BROKER.sh > /dev/null 2>&1
-sleep 10
-EOF
-
-chmod +x ~/kafka-learning-lab/scripts/measure-recovery.sh
-```
-
-### Run Multiple Recovery Tests
-
-```bash
-# Ensure all brokers are running
-for i in {0..2}; do
-  if ! pgrep -f "server-$i.properties" > /dev/null; then
-    ./scripts/start-broker-$i.sh
-    sleep 5
-  fi
-done
-
-# Run 10 recovery tests
-echo "Running 10 recovery time tests..."
-echo ""
-
-for i in {1..10}; do
-  echo "=========================================="
-  echo "Test $i/10"
-  echo "=========================================="
-  ./scripts/measure-recovery.sh fault-test
-  echo ""
-  sleep 5
-done
-```
-
-### Analyze Results
-
-**Typical Results (on macOS M1):**
-
-```
-Test 1: Leader Election: 2s, Total Recovery: 3s
-Test 2: Leader Election: 1s, Total Recovery: 2s
-Test 3: Leader Election: 2s, Total Recovery: 3s
-Test 4: Leader Election: 1s, Total Recovery: 2s
-Test 5: Leader Election: 2s, Total Recovery: 3s
-Test 6: Leader Election: 1s, Total Recovery: 2s
-Test 7: Leader Election: 2s, Total Recovery: 3s
-Test 8: Leader Election: 1s, Total Recovery: 2s
-Test 9: Leader Election: 2s, Total Recovery: 3s
-Test 10: Leader Election: 1s, Total Recovery: 2s
-
-Average Leader Election Time: ~1.6s
-Average Total Recovery Time: ~2.5s
-```
-
-### Calculate Averages (Optional)
-
-```bash
-# If you want exact averages, install bc:
-# brew install bc
-
-# Then use this script to calculate
-cat > ~/kafka-learning-lab/calculate-avg-recovery.sh << 'EOF'
-#!/bin/bash
-echo "Paste recovery times (Ctrl+D when done):"
-SUM=0
-COUNT=0
-while read -r TIME; do
-  SUM=$(echo "$SUM + $TIME" | bc)
-  COUNT=$((COUNT + 1))
-done
-AVG=$(echo "scale=2; $SUM / $COUNT" | bc)
-echo "Average: ${AVG}s"
-EOF
-
-chmod +x ~/kafka-learning-lab/calculate-avg-recovery.sh
-```
-
-### Lab 9 Takeaways
-
-✅ **Typical recovery: 1-3 seconds** (very fast!)  
-✅ **Consistent across multiple tests** (predictable)  
-✅ **Leader election:** 1-2 seconds  
-✅ **Full recovery (first write):** 2-3 seconds  
-✅ **macOS M1 performance:** Excellent for Kafka testing
-
-***
 
 ## Best Practices & Production Recommendations
 
@@ -2978,7 +2972,7 @@ Partitions = 600 ÷ 100 = 6 partitions
 - [ ] `replication.factor ≥ 3`
 - [ ] `min.insync.replicas = RF - 1`
 - [ ] `unclean.leader.election.enable = false`
-- [ ] Monitoring setup (Prometheus + Grafana)
+- [ ] Monitoring setup (Ex: Grafana)
 - [ ] Backup and disaster recovery plan
 - [ ] Tested broker failure scenarios (these labs!)
 - [ ] Load testing completed
@@ -3017,14 +3011,7 @@ kafka/bin/kafka-topics.sh --describe \
 **Solution:**
 ```bash
 # Check broker health
-for i in {0..2}; do
-  if pgrep -f "server-$i.properties" > /dev/null; then
-    echo "✅ Broker $i running"
-  else
-    echo "❌ Broker $i down - restarting..."
-    ./scripts/start-broker-$i.sh
-  fi
-done
+./scripts/monitor-cluster.sh
 
 # Check disk space
 df -h /tmp/kafka-logs-*
@@ -3058,6 +3045,8 @@ sleep 30
 
 # Check if issue persists
 kafka/bin/kafka-topics.sh --describe --topic <topic> --bootstrap-server localhost:9092
+#or
+./scripts/monitor-cluster.sh <topic>
 
 # If no leader shown, restart all brokers
 for i in {0..2}; do
@@ -3227,56 +3216,6 @@ for i in {0..2}; do
 done
 ```
 
-### Issue 7: Partition Offline
-
-**Symptom:**
-```bash
-kafka/bin/kafka-topics.sh --describe --topic <topic> --bootstrap-server localhost:9092
-
-# Shows:
-# Partition: 1    Leader: -1    Replicas: 0,1,2    Isr:
-```
-
-**Diagnosis:**
-```bash
-# Check unavailable partitions
-kafka/bin/kafka-topics.sh --describe \
-  --unavailable-partitions \
-  --bootstrap-server localhost:9092
-```
-
-**Common Causes:**
-1. All replicas down
-2. All replicas out of ISR
-3. Unclean leader election disabled (and no in-sync replicas)
-
-**Solution:**
-```bash
-# Option 1: Restart all brokers hosting replicas
-for i in {0..2}; do
-  if ! pgrep -f "server-$i.properties" > /dev/null; then
-    ./scripts/start-broker-$i.sh
-    sleep 10
-  fi
-done
-
-# Option 2: If data loss acceptable, enable unclean leader election
-kafka/bin/kafka-configs.sh --alter \
-  --entity-type topics \
-  --entity-name <topic> \
-  --add-config unclean.leader.election.enable=true \
-  --bootstrap-server localhost:9092
-
-# Wait for leader election
-sleep 5
-
-# Disable again immediately
-kafka/bin/kafka-configs.sh --alter \
-  --entity-type topics \
-  --entity-name <topic> \
-  --delete-config unclean.leader.election.enable \
-  --bootstrap-server localhost:9092
-```
 
 ***
 
@@ -3299,6 +3238,9 @@ if pgrep -f "server-0.properties" > /dev/null; then
 else
   echo "Broker 0 is NOT running"
 fi
+
+# or 
+./scripts/monitor-cluster.sh
 
 # ===== Killing Processes =====
 
@@ -3348,6 +3290,9 @@ lsof -ti:9092 | xargs kill -9
 
 ```bash
 # ===== Cluster Health =====
+# Universal
+./scripts/monitor-cluster.sh
+./scripts/monitor-cluster.sh <topic>
 
 # Check all topics
 kafka/bin/kafka-topics.sh --list --bootstrap-server localhost:9092
@@ -3403,460 +3348,3 @@ df -h /tmp/kafka-logs-*
 # Check size of each partition directory
 du -sh /tmp/kafka-logs-*/*
 ```
-
-### Testing Commands
-
-```bash
-# ===== Random Selection (macOS) =====
-
-# Random broker (0, 1, or 2) - use jot on macOS
-BROKER=$(jot -r 1 0 2)
-echo "Selected broker: $BROKER"
-
-# Random port
-PORT=$(jot -r 1 9092 9094)
-
-# ===== Message Production =====
-
-# Quick test message
-echo "Test at $(date +%H:%M:%S)" | \
-kafka/bin/kafka-console-producer.sh \
-  --topic fault-test \
-  --bootstrap-server localhost:9092 \
-  --producer-property acks=all
-
-# Bulk test messages
-for i in {1..100}; do echo "Message $i"; done | \
-kafka/bin/kafka-console-producer.sh \
-  --topic fault-test \
-  --bootstrap-server localhost:9092
-
-# ===== Message Consumption =====
-
-# Consume from beginning
-kafka/bin/kafka-console-consumer.sh \
-  --topic fault-test \
-  --from-beginning \
-  --bootstrap-server localhost:9092 \
-  --timeout-ms 5000
-
-# Count messages in topic
-kafka/bin/kafka-run-class.sh org.apache.kafka.tools.GetOffsetShell \
-  --bootstrap-server localhost:9092 \
-  --topic fault-test | \
-  awk -F: '{sum += $3} END {print sum}'
-
-# ===== Configuration =====
-
-# View topic configuration
-kafka/bin/kafka-configs.sh --describe \
-  --entity-type topics \
-  --entity-name fault-test \
-  --bootstrap-server localhost:9092
-
-# Alter configuration
-kafka/bin/kafka-configs.sh --alter \
-  --entity-type topics \
-  --entity-name fault-test \
-  --add-config min.insync.replicas=2 \
-  --bootstrap-server localhost:9092
-```
-
-### Emergency Recovery
-
-```bash
-# ===== Nuclear Option (Complete Reset) =====
-
-# WARNING: This deletes ALL data!
-
-# 1. Stop all Kafka brokers
-pkill -9 -f "kafka.Kafka"
-
-# 2. Stop ZooKeeper
-pkill -9 -f "zookeeper"
-
-# 3. Delete all data
-rm -rf /tmp/kafka-logs-*
-rm -rf /tmp/zookeeper
-
-# 4. Restart ZooKeeper
-./scripts/start-zookeeper.sh
-sleep 5
-
-# 5. Restart all brokers
-for i in {0..2}; do
-  ./scripts/start-broker-$i.sh
-  sleep 5
-done
-
-# 6. Recreate topics
-kafka/bin/kafka-topics.sh --create \
-  --topic fault-test \
-  --bootstrap-server localhost:9092 \
-  --partitions 3 \
-  --replication-factor 3 \
-  --config min.insync.replicas=2
-```
-
-***
-
-## Lab Session Checklist
-
-**Print this checklist for your lab session:**
-
-```bash
-cat > ~/kafka-learning-lab/lab-session-checklist.txt << 'EOF'
-╔══════════════════════════════════════════════════════════╗
-║  Kafka Fault Tolerance Testing - Session Checklist      ║
-╚══════════════════════════════════════════════════════════╝
-
-Pre-Lab Setup (15 minutes)
-───────────────────────────────────────────────────────────
-[ ] Increase ulimit: ulimit -n 10000
-[ ] Verify all 3 brokers running
-[ ] Create fault-test topic (RF=3, min.insync=2)
-[ ] Test monitoring script
-[ ] Open 4-5 terminal windows
-
-Core Labs (90 minutes)
-───────────────────────────────────────────────────────────
-Lab 1: Leader Broker Failure (20 min)
-[ ] Record baseline partition leaders
-[ ] Start continuous producer/consumer
-[ ] Kill leader broker
-[ ] Observe election (~1-2 seconds)
-[ ] Restart broker, watch ISR rejoin
-[ ] Verify no data loss
-✅ Takeaway: Leader election is automatic and fast
-
-Lab 2: ISR Behavior (15 min)
-[ ] Pause broker with pkill -STOP
-[ ] Watch ISR shrink after 30 seconds
-[ ] Resume with pkill -CONT
-[ ] Watch ISR expand back
-[ ] Check under-replicated partitions
-✅ Takeaway: ISR is dynamic and self-healing
-
-Lab 3: min.insync.replicas (20 min)
-[ ] Create strict-durability topic (RF=3, min.insync=3)
-[ ] Produce with all replicas (works)
-[ ] Kill 1 broker, wait 35 seconds
-[ ] Try producing (fails - NotEnoughReplicasException)
-[ ] Lower min.insync.replicas to 2
-[ ] Produce again (works)
-[ ] Restart broker
-✅ Takeaway: min.insync.replicas enforces durability
-
-Lab 4: Multiple Broker Failures (15 min)
-[ ] Kill 2/3 brokers simultaneously
-[ ] Observe partition availability
-[ ] Check which partitions are offline
-[ ] Try producing (fails)
-[ ] Restart both brokers
-[ ] Verify full recovery
-✅ Takeaway: Need > 50% brokers for availability
-
-Lab 5: Producer Behavior (20 min)
-[ ] Test acks=0 during failure (data loss)
-[ ] Test acks=1 during failure (possible loss)
-[ ] Test acks=all during failure (no loss)
-[ ] Compare results in table
-✅ Takeaway: acks=all is safest for critical data
-
-Advanced Labs (45 minutes)
-───────────────────────────────────────────────────────────
-Lab 6: Consumer Behavior (15 min)
-[ ] Start 3 consumers in same group
-[ ] Verify partition assignment
-[ ] Kill leader of partition 0
-[ ] Observe consumer reconnection
-[ ] Verify no rebalancing triggered
-✅ Takeaway: Consumers are resilient to broker failures
-
-Lab 7: Network Partition (15 min)
-[ ] Pause broker with pkill -STOP
-[ ] Wait 35 seconds
-[ ] Observe broker removed from ISR
-[ ] Produce messages (still works)
-[ ] Resume broker with pkill -CONT
-[ ] Verify rejoin
-✅ Takeaway: Kafka prevents split-brain
-
-Lab 8: Data Durability (15 min)
-[ ] Create durability-test topic
-[ ] Produce 100 initial messages
-[ ] Run chaos test (2 minutes)
-[ ] Produce 100 more messages during chaos
-[ ] Verify all 200 messages received
-[ ] Check for duplicates (should be 0)
-[ ] Check for gaps (should be 0)
-✅ Takeaway: Zero data loss with correct config
-
-Bonus Lab (20 minutes)
-───────────────────────────────────────────────────────────
-Lab 9: Recovery Time Measurement
-[ ] Run measure-recovery.sh 10 times
-[ ] Record leader election times
-[ ] Record total recovery times
-[ ] Calculate averages
-✅ Takeaway: Typical recovery is 1-3 seconds
-
-Wrap-up (15 minutes)
-───────────────────────────────────────────────────────────
-[ ] Review all takeaways
-[ ] Document interesting observations
-[ ] Clean up test topics (optional)
-[ ] Stop all brokers gracefully
-[ ] Plan next module (05-replication-partitioning.md)
-
-╔══════════════════════════════════════════════════════════╗
-║  Key Learnings to Remember                              ║
-╚══════════════════════════════════════════════════════════╝
-
-✅ Leader election: 1-2 seconds (automatic)
-✅ ISR is dynamic (shrinks/expands automatically)
-✅ min.insync.replicas enforces durability guarantees
-✅ acks=all prevents data loss
-✅ Kafka handles failures gracefully
-✅ Proper config = zero data loss
-
-Production Config Template:
-──────────────────────────────────────────────────────────
-replication.factor=3
-min.insync.replicas=2
-unclean.leader.election.enable=false
-acks=all (producer)
-enable.idempotence=true (producer)
-
-EOF
-
-cat ~/kafka-learning-lab/lab-session-checklist.txt
-```
-
-***
-
-## Summary & Key Takeaways
-
-### What You've Accomplished
-
-🎓 **Completed 8-9 hands-on labs** covering all aspects of Kafka fault tolerance  
-🎓 **Simulated real production failures** (broker crashes, network partitions, multiple failures)  
-🎓 **Measured recovery times** (1-3 seconds typical)  
-🎓 **Tested data durability** (zero loss with correct configuration)  
-🎓 **Validated producer/consumer resilience** (automatic reconnection)  
-🎓 **Mastered ISR mechanics** (dynamic shrink/expand)  
-🎓 **Understood min.insync.replicas** (durability vs. availability trade-off)
-
-### Critical Concepts Mastered
-
-#### 1. Replication & ISR
-```
-✅ ISR = replicas caught up with leader
-✅ Removed after 30 seconds lag (replica.lag.time.max.ms)
-✅ Automatically rejoin when caught up
-✅ Monitor under-replicated partitions in production
-```
-
-#### 2. Leader Election
-```
-✅ Happens automatically in 1-2 seconds
-✅ Only ISR replicas are eligible
-✅ Controller orchestrates election
-✅ Prevents split-brain scenarios
-```
-
-#### 3. Producer Durability
-```
-✅ acks=0: Fast, unsafe (data loss possible)
-✅ acks=1: Balanced, risky (loss if leader fails)
-✅ acks=all: Safe, slower (no loss with min.insync.replicas)
-```
-
-#### 4. Fault Tolerance Limits
-```
-✅ RF=3, min.insync=2: Can lose 1 broker
-✅ RF=3, min.insync=3: Cannot lose any broker (avoid!)
-✅ Losing > 50% brokers: Unavailable for writes
-```
-
-### Production-Ready Configuration
-
-```bash
-# Topic Configuration (Standard)
-replication.factor=3
-min.insync.replicas=2
-unclean.leader.election.enable=false
-compression.type=lz4
-retention.ms=604800000  # 7 days
-
-# Producer Configuration (Critical Data)
-acks=all
-retries=2147483647  # Max int
-max.in.flight.requests.per.connection=1  # Ordering
-enable.idempotence=true  # Exactly-once
-compression.type=lz4
-
-# Consumer Configuration
-enable.auto.commit=false  # Manual control
-isolation.level=read_committed  # For transactions
-session.timeout.ms=30000
-heartbeat.interval.ms=3000
-```
-
-### Monitoring Checklist
-
-**Must-Monitor Metrics:**
-```
-🔴 UnderReplicatedPartitions > 0 (alert immediately)
-🔴 OfflinePartitionsCount > 0 (critical alert)
-🟡 ISR shrink rate > 10/hour (investigate)
-🟡 Consumer lag > threshold (scale consumers)
-🟢 Leader election rate (should be rare)
-```
-
-### Common Gotchas & How to Avoid
-
-| Gotcha | Impact | Prevention |
-|--------|--------|-----------|
-| `min.insync.replicas = RF` | No fault tolerance | Always set `min.insync = RF - 1` |
-| `acks=1` in production | Data loss risk | Use `acks=all` for critical data |
-| Too many partitions | Controller overhead | Plan capacity: ~4,000 per broker max |
-| Not monitoring ISR | Delayed failure detection | Alert on under-replicated partitions |
-| Single broker cluster | No redundancy | Always use RF ≥ 3 in production |
-
-***
-
-## Next Steps
-
-### Immediate Actions
-
-1. **Document Your Findings**
-   ```bash
-   # Create your observations file
-   cat > ~/kafka-learning-lab/fault-tolerance-observations.md << 'EOF'
-   # My Fault Tolerance Testing Observations
-   
-   ## Lab 1: Leader Failure
-   - Observed recovery time: X seconds
-   - Interesting finding: ...
-   
-   ## Lab 2: ISR Behavior
-   - ISR shrink time: 30 seconds (as expected)
-   - Note: ...
-   
-   ## Lab 3: min.insync.replicas
-   - Key learning: ...
-   
-   [Continue with your notes...]
-   EOF
-   ```
-
-2. **Save Your Test Scripts**
-   ```bash
-   # Your test scripts are in:
-   ls -la ~/kafka-learning-lab/test-scripts/
-   ls -la ~/kafka-learning-lab/scripts/
-   
-   # Keep these for future reference!
-   ```
-
-3. **Clean Up (Optional)**
-   ```bash
-   # If you want to clean up test topics
-   kafka/bin/kafka-topics.sh --delete --topic fault-test --bootstrap-server localhost:9092
-   kafka/bin/kafka-topics.sh --delete --topic strict-durability --bootstrap-server localhost:9092
-   kafka/bin/kafka-topics.sh --delete --topic durability-test --bootstrap-server localhost:9092
-   kafka/bin/kafka-topics.sh --delete --topic consumer-test --bootstrap-server localhost:9092
-   
-   # Or keep them for future experiments
-   ```
-
-### Move to Next Module: 05-replication-partitioning.md
-
-**What You'll Learn Next:**
-- Deep dive into replication mechanics (log segments, offsets)
-- Partition leader election algorithms (detailed)
-- High-water mark vs. log-end-offset
-- Exactly-once semantics (transactions)
-- Advanced replication configurations
-
-**Why This Matters:**
-Now that you've **seen** fault tolerance in action, you'll learn the **theory and internals** behind it. This completes your understanding from practice → theory.
-
-### Continue Your Kafka Journey
-
-**Recommended Learning Path:**
-1. ✅ **04-fault-tolerance-testing.md** ← **YOU ARE HERE!**
-2. ⏭️ **05-replication-partitioning.md** (Next - Deep dive)
-3. 📝 **06-python-integration.md** (Build applications)
-4. 📊 **07-monitoring-setup.md** (Observability)
-5. 🚀 **08-spark-integration.md** (Stream processing)
-6. 🔧 **09-troubleshooting.md** (War stories)
-
-***
-
-## Additional Resources
-
-### Official Documentation
-- [Kafka Replication Design](https://kafka.apache.org/documentation/#replication)
-- [Kafka Configuration Reference](https://kafka.apache.org/documentation/#configuration)
-- [Producer Configurations](https://kafka.apache.org/documentation/#producerconfigs)
-- [Consumer Configurations](https://kafka.apache.org/documentation/#consumerconfigs)
-
-### Recommended Reading
-- "Kafka: The Definitive Guide" (Chapters 5-6: Replication & Reliability)
-- Confluent Blog: "Hands-free Kafka Replication"
-- Apache Kafka KIPs (Kafka Improvement Proposals)
-
-### Community
-- Apache Kafka Mailing Lists
-- Confluent Community Forum
-- Kafka Summit recordings
-
-***
-
-## Congratulations! 🎉
-
-You've completed comprehensive fault tolerance testing for Apache Kafka!
-
-**You now understand:**
-- ✅ How Kafka handles failures gracefully
-- ✅ When and why data loss can occur
-- ✅ How to configure Kafka for zero data loss
-- ✅ How to monitor Kafka health in production
-- ✅ How to troubleshoot common issues
-
-**You're now equipped to:**
-- 🎯 Design resilient Kafka architectures
-- 🎯 Configure production Kafka clusters correctly
-- 🎯 Handle broker failures confidently
-- 🎯 Make informed durability vs. availability trade-offs
-- 🎯 Debug ISR and replication issues
-
-***
-
-## Final Notes
-
-**Remember the Golden Rules:**
-
-1. **Always use RF=3 in production**
-2. **Always set min.insync.replicas=2 for RF=3**
-3. **Always use acks=all for critical data**
-4. **Always monitor under-replicated partitions**
-5. **Always test failure scenarios before going live**
-
-**macOS-Specific Reminders:**
-- Use `pkill` instead of `kill` for process management
-- Use `jot` instead of `shuf` for random numbers
-- Increase `ulimit -n` to 10000 for Kafka
-- `/tmp` is cleared on reboot - consider permanent storage
-
-***
-
-**Save this document:** `~/kafka-learning-lab/docs/04-fault-tolerance-testing.md`
-
-**Ready for the next challenge?** Let me know when you want to start **05-replication-partitioning.md**! 🚀
-
-***
-
-*End of Document - Kafka Fault Tolerance Testing (Complete)*
