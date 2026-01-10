@@ -9,11 +9,7 @@
 - [Repository Structure](#repository-structure)
 - [Learning Path](#learning-path)
 - [Environment Setup](#environment-setup)
-- [Core Components](#core-components)
-- [Running Your First Lab](#running-your-first-lab)
-- [Troubleshooting](#troubleshooting)
-- [Best Practices](#best-practices)
-- [Next Steps](#next-steps)
+
 
 ---
 
